@@ -1,0 +1,154 @@
+<project name="git-st" default="distrib">
+    <dirname property="project.dir" file="${ant.file}" />
+    <property name="project.name" value="${ant.project.name}" />
+    <property name="symbolic.name" value="com.googlecode.gitst" />
+    <property name="project.version" value="1.0.0" />
+
+    <property name="src.dir" location="${project.dir}/src" />
+    <property name="build.dir" location="${project.dir}/build" />
+    <property name="build.classes.dir" location="${build.dir}/classes" />
+    <property name="bin.dir" location="${project.dir}/bin" />
+    <property name="config.dir" location="${project.dir}/config" />
+    <property name="jar.name" value="${project.name}.jar" />
+    <property name="jar.file" location="${build.dir}/${jar.name}" />
+    <property name="assemble.dir" location="${build.dir}/assemble" />
+    <property name="distrib.dir" location="${build.dir}/distrib" />
+
+    <property environment="env" />
+
+
+
+    <available file="dpkg-deb"
+               filepath="${env.PATH}"
+               property="dpkg-deb.available" />
+
+    <target name="compile">
+        <mkdir dir="${build.classes.dir}" />
+        <javac srcdir="${src.dir}"
+               destdir="${build.classes.dir}"
+               debug="true"
+               debuglevel="lines,vars,source"
+               includeantruntime="false">
+            <classpath>
+                <path path="${env.STARTEAM_JAVA_API}" />
+            </classpath>
+        </javac>
+
+        <copy todir="${build.classes.dir}/META-INF">
+            <fileset dir="${project.dir}/META-INF" includes="**/**" />
+            <filterchain>
+                <replaceregex pattern="^Bundle-Version: .*$"
+                              replace="Bundle-Version: ${project.version}" />
+                <replaceregex pattern="^Bundle-SymbolicName: .*$"
+                              replace="Bundle-SymbolicName: ${symbolic.name}" />
+            </filterchain>
+        </copy>
+    </target>
+
+    <target name="jar" depends="compile">
+        <dirname property="jar.dir" file="${jar.file}" />
+        <mkdir dir="${jar.dir}" />
+        <jar destfile="${jar.file}"
+             basedir="${build.classes.dir}"
+             manifest="${build.classes.dir}/META-INF/MANIFEST.MF" />
+    </target>
+
+    <target name="assemble-zip" depends="jar">
+        <property name="assemble.zip.dir" location="${assemble.dir}/zip" />
+        <delete dir="${assemble.zip.dir}" />
+
+        <copy todir="${assemble.zip.dir}/${project.name}/lib"
+              file="${jar.file}" />
+
+        <copy todir="${assemble.zip.dir}/${project.name}/bin">
+            <fileset dir="${bin.dir}" includes="${project.name}" />
+
+            <filterchain>
+                <replacetokens>
+                    <token key="JAR_NAME" value="${jar.name}" />
+                    <token key="JAR_DIR"
+                           value="$(dirname &quot;$0&quot;)/../lib" />
+                    <token key="CFG_DIR"
+                           value="$(dirname &quot;$0&quot;)/../config" />
+                </replacetokens>
+            </filterchain>
+        </copy>
+
+        <chmod perm="a+x"
+               file="${assemble.zip.dir}/${project.name}/bin/${project.name}" />
+
+        <copy todir="${assemble.zip.dir}/${project.name}/config">
+            <fileset dir="${config.dir}" includes="*" />
+        </copy>
+    </target>
+
+    <target name="assemble-deb" depends="jar" if="dpkg-deb.available">
+        <property name="assemble.deb.dir" location="${assemble.dir}/deb" />
+        <delete dir="${assemble.deb.dir}" />
+
+        <copy todir="${assemble.deb.dir}/usr/lib/git-core" file="${jar.file}" />
+
+        <copy todir="${assemble.deb.dir}/usr/lib/git-core"
+              file="${bin.dir}/${project.name}">
+            <filterchain>
+                <replacetokens>
+                    <token key="JAR_NAME" value="${jar.name}" />
+                    <token key="JAR_DIR" value="/usr/lib/git-core" />
+                    <token key="CFG_DIR" value="/etc/${project.name}" />
+                </replacetokens>
+            </filterchain>
+        </copy>
+
+        <chmod perm="a+x"
+               file="${assemble.deb.dir}/usr/lib/git-core/${project.name}" />
+
+        <copy todir="${assemble.deb.dir}/etc/${project.name}">
+            <fileset dir="${config.dir}" includes="*" />
+        </copy>
+    </target>
+
+    <target name="distrib-zip" depends="assemble-zip">
+        <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
+            <zipfileset dir="${assemble.zip.dir}" includes="**/**" />
+            <zipfileset dir="${assemble.zip.dir}"
+                        filemode="755"
+                        includes="${project.name}/bin/${project.name}" />
+        </zip>
+    </target>
+
+    <target name="distrib-deb" depends="assemble-deb">
+        <exec executable="sh" outputproperty="size">
+            <arg value="-c" />
+            <arg value="du -s ${assemble.deb.dir} | awk '{print $1}'" />
+        </exec>
+
+        <echo file="${assemble.deb.dir}/DEBIAN/control">Package: ${project.name}
+Version: ${project.version}
+Architecture: all
+Maintainer: Andrey Pavlenko
+Installed-Size: ${size}
+Section: net
+Homepage: http://code.google.com/p/${project.name}/
+Description: Git frontend for StarTeam.
+ Git frontend for StarTeam.
+</echo>
+
+        <echo file="${assemble.deb.dir}/DEBIAN/conffiles">/etc/${project.name}/global.properties
+/etc/${project.name}/users.map
+</echo>
+
+        <exec executable="fakeroot">
+            <arg value="dpkg-deb" />
+            <arg value="-b" />
+            <arg file="${assemble.deb.dir}" />
+            <arg value="${distrib.dir}/${project.name}_${project.version}.deb" />
+        </exec>
+    </target>
+
+    <target name="distrib" depends="distrib-zip, distrib-deb" />
+
+    <target name="clean">
+        <delete dir="${build.dir}" />
+        <delete dir="${distrib.dir}" />
+    </target>
+</project>

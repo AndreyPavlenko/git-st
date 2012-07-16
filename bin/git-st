@@ -1,0 +1,47 @@
+#!/bin/sh
+
+if [ -z "$STARTEAM_JAVA_API" ]
+then
+    echo "System environment variable STARTEAM_JAVA_API is not set" >&2
+    echo "Please set this variable first." >&2
+    echo "Example:" >&2
+    echo "export STARTEAM_JAVA_API=\"/opt/StarTeamCP_2009/lib/starteam110.jar\"" >&2
+    exit 1
+fi
+
+JAR_NAME="@JAR_NAME@"
+JAR_DIR="@JAR_DIR@"
+CFG_DIR="@CFG_DIR@"
+PKG_NAME="com.googlecode.gitst"
+
+if [ ! -f "$JAR_DIR/$JAR_NAME" ]
+then
+    echo "$JAR_NAME not found in $JAR_DIR" >&2
+    exit 1
+fi
+
+if [ "$OSTYPE" = "cygwin" ]
+then
+    PS=";"
+else
+    PS=":"
+fi
+
+case $1 in
+    init)
+        CLASS_NAME="Init"
+        ;;
+    pull)
+        CLASS_NAME="Pull"
+        ;;
+    push)
+        CLASS_NAME="Push"
+        ;;
+    *)
+        echo "Usage: git st <init|pull|push>" >&2
+        exit 1
+        ;;
+esac
+
+exec java -cp "$JAR_DIR/$JAR_NAME$PS$STARTEAM_JAVA_API" "$PKG_NAME.$CLASS_NAME" -c "$CFG_DIR" $*
+

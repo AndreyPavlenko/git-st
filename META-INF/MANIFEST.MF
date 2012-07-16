@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Main-Class: com.googlecode.pacswitch.Main
+Bundle-ManifestVersion: 2
+Bundle-Name: git-st
+Bundle-SymbolicName: com.googlecode.gitst
+Bundle-Version: 1.0.0
+Bundle-Vendor: Andrey Pavlenko
+Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+Bundle-ActivationPolicy: lazy
+Export-Package: com.googlecode.gitst,
+ com.googlecode.gitst.fastimport
