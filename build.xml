@@ -16,7 +16,8 @@
 
     <property environment="env" />
 
-
+    <fail unless="env.STARTEAM_JAVA_API"
+          message="System environment variable STARTEAM_JAVA_API is not set" />
 
     <available file="dpkg-deb"
                filepath="${env.PATH}"
