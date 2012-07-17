@@ -28,8 +28,7 @@ public class RepoProperties {
     public static final String PROP_USER_NAME_PATTERN = "UserNamePattern";
     public static final String PROP_DEFAULT_BRANCH = "master";
     public static final String PROP_DEFAULT_USER_NAME_PATTERN = "{0} <{2}.{1}@mycompany.com>";
-    public static final String META_PROP_OLEDATE = "OLEDate";
-    public static final String META_PROP_SHA = "SHA";
+    public static final String META_PROP_LAST_SYNC_DATE = "LastSyncDate";
 
     private final File _repoDir;
     private final File _configDir;
