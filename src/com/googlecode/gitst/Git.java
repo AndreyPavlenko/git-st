@@ -70,13 +70,17 @@ public class Git {
     }
 
     public Exec fastExport(final String... args) {
-        final List<String> l = new ArrayList<>(args == null ? 3
-                : 3 + args.length);
-        final String marks = getMarksFile().getAbsolutePath();
+        final List<String> l = new ArrayList<>(args == null ? 4
+                : 4 + args.length);
+        final File f = getMarksFile();
+        final String marks = f.getAbsolutePath();
         l.add("fast-export");
+        l.add("--no-data");
         l.add("--export-marks=" + marks);
-        l.add("--import-marks=" + marks);
 
+        if (f.exists()) {
+            l.add("--import-marks=" + marks);
+        }
         if (args != null) {
             for (final String a : args) {
                 l.add(a);

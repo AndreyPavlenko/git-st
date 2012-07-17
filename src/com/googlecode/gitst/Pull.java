@@ -10,6 +10,8 @@ import java.util.Collection;
 
 import com.googlecode.gitst.fastimport.Commit;
 import com.googlecode.gitst.fastimport.FastImport;
+import com.starbase.starteam.View;
+import com.starbase.util.OLEDate;
 
 /**
  * @author Andrey Pavlenko
@@ -71,14 +73,16 @@ public class Pull {
 
     public void pull() throws IOException, InterruptedException,
             ExecutionException {
+        long time = System.currentTimeMillis();
         final Repo repo = getRepo();
+        final View view = repo.connect();
         final Logger logger = getLogger();
         final RepoProperties props = repo.getRepoProperties();
         final FastImport fastImport = new FastImport(repo, logger);
         final String lastSync = props.getMetaProperty(META_PROP_LAST_SYNC_DATE);
-        final long startDate = (lastSync == null) ? 0L : Long
-                .parseLong(lastSync);
-        final long endDate = System.currentTimeMillis();
+        final OLEDate startDate = (lastSync == null) ? view.getCreatedTime()
+                : new OLEDate(Double.parseDouble(lastSync));
+        final OLEDate endDate = repo.getServer().getCurrentTime();
         final Collection<Commit> commits = fastImport.loadChanges(startDate,
                 endDate);
 
@@ -86,7 +90,7 @@ public class Pull {
             _log.echo();
             fastImport.exec(commits);
             props.setMetaProperty(META_PROP_LAST_SYNC_DATE,
-                    String.valueOf(endDate));
+                    String.valueOf(endDate.getDoubleValue()));
             props.saveMeta();
 
             if (!repo.isBare()) {
@@ -94,7 +98,13 @@ public class Pull {
             }
         } else {
             _log.echo("No changes found");
+            _log.echo();
         }
+
+        time = (System.currentTimeMillis() - time) / 1000;
+        _log.echo("Total time: "
+                + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
+                        + (time % 60) + "s"));
     }
 
     private static void printHelp(final PrintStream ps) {

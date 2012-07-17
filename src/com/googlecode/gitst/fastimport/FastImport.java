@@ -47,24 +47,21 @@ public class FastImport {
         return _log;
     }
 
-    public Collection<Commit> loadChanges(final long startDate,
-            final long endDate) {
+    public Collection<Commit> loadChanges(final OLEDate startDate,
+            final OLEDate endDate) {
         final Repo repo = getRepo();
         final View v = repo.connect();
         final ViewListener listener = new ViewListener();
         final ViewConfigurationDiffer diff = new ViewConfigurationDiffer(v);
-        final OLEDate start = (startDate == 0L) ? v.getCreatedTime()
-                : new OLEDate(startDate);
-        final OLEDate end = new OLEDate(endDate);
 
-        _log.echo("Requesting changes since " + start);
+        _log.echo("Requesting changes since " + startDate);
         _log.echo();
 
         diff.addFolderUpdateListener(listener);
         diff.addItemUpdateListener(listener,
                 repo.getServer().typeForName("File"));
-        diff.compare(ViewConfiguration.createFromTime(start),
-                ViewConfiguration.createFromTime(end));
+        diff.compare(ViewConfiguration.createFromTime(startDate),
+                ViewConfiguration.createFromTime(endDate));
 
         return listener.getCommits().values();
     }
