@@ -21,8 +21,8 @@ public class Exec {
         _builder = new ProcessBuilder(command);
         _builder.directory(dir);
     }
-    
-    public Exec(final File dir, List<String> command) {
+
+    public Exec(final File dir, final List<String> command) {
         _builder = new ProcessBuilder(command);
         _builder.directory(dir);
     }
@@ -62,16 +62,19 @@ public class Exec {
         return _process;
     }
 
-    public void waitFor() throws InterruptedException {
+    public int waitFor() throws InterruptedException {
         final Process p = _process;
+        int exitCode = 0;
 
         if (p != null) {
             final StreamRedirector out = _outRedirector;
             final StreamRedirector err = _errRedirector;
-            p.waitFor();
+            exitCode = p.waitFor();
             out.waitFor();
             err.waitFor();
         }
+
+        return exitCode;
     }
 
     private class StreamRedirector extends Thread {

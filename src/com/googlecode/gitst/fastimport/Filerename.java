@@ -3,6 +3,7 @@ package com.googlecode.gitst.fastimport;
 import java.io.IOException;
 import java.io.PrintStream;
 
+import com.starbase.starteam.File;
 import com.starbase.starteam.Item;
 
 /**
@@ -37,12 +38,26 @@ public class Filerename extends FileChange {
     }
 
     @Override
+    public int getPriority() {
+        return 2;
+    }
+
+    @Override
     public void write(final PrintStream s) throws IOException {
-        s.print("R ");
-        s.print(getSourcePath());
-        s.print(' ');
-        s.print(getDestPath());
-        s.print('\n');
+        final Item i = getDestItem();
+
+        if (i instanceof File) {
+            // Rename fails for new files, so using delete/create instead.
+            new Filedelete(getSourcePath()).write(s);
+            new Filemodify(getDestPath(), new FileData((File) i), true)
+                    .write(s);
+        } else {
+            s.print("R ");
+            s.print(getSourcePath());
+            s.print(' ');
+            s.print(getDestPath());
+            s.print('\n');
+        }
     }
 
     @Override

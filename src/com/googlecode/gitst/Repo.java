@@ -45,24 +45,10 @@ public class Repo implements AutoCloseable {
     private int _currentUserId;
 
     public Repo(final RepoProperties repoProperties) {
-        String s = repoProperties.getProperty(PROP_USER, null);
-
-        if (s == null) {
-            _userName = repoProperties.requestProperty(PROP_USER, "Username: ",
-                    false);
-        } else {
-            _userName = s;
-        }
-
-        s = repoProperties.getProperty(PROP_PASSWORD, null);
-
-        if (s == null) {
-            _password = repoProperties.requestProperty(PROP_PASSWORD,
-                    "Password: ", true);
-        } else {
-            _password = s;
-        }
-
+        _userName = repoProperties.getOrRequestProperty(PROP_USER,
+                "Username: ", false);
+        _password = repoProperties.getOrRequestProperty(PROP_PASSWORD,
+                "Password: ", true);
         _host = repoProperties.getProperty(PROP_HOST);
         _port = Integer.parseInt(repoProperties.getProperty(PROP_PORT));
         _projectName = repoProperties.getProperty(PROP_PROJECT);

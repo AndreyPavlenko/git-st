@@ -125,12 +125,20 @@ public class RepoProperties {
         return _uidToName.put(uid, name);
     }
 
+    public String getOrRequestProperty(final String name, final String prompt,
+            final boolean isPassword) {
+        final String value = _sessionProperties.getProperty(name);
+        return (value == null) ? requestProperty(name, prompt, isPassword)
+                : value;
+    }
+
     public String requestProperty(final String name, final String prompt,
             final boolean isPassword) {
         final Console c = System.console();
 
         if (c == null) {
-            throw new IllegalStateException("Unable to connect to console");
+            throw new ConfigurationException(
+                    "Missing required configuration property: " + name);
         }
 
         final String value;

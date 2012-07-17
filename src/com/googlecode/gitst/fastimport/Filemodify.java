@@ -8,14 +8,21 @@ import java.io.PrintStream;
  */
 public class Filemodify extends FileChange {
     private final FileData _fileData;
+    private final boolean _isNewFile;
 
-    public Filemodify(final String path, final FileData fileData) {
+    public Filemodify(final String path, final FileData fileData,
+            final boolean isNewFile) {
         super(path);
         _fileData = fileData;
+        _isNewFile = isNewFile;
     }
 
     public FileData getFileData() {
         return _fileData;
+    }
+
+    public boolean isNewFile() {
+        return _isNewFile;
     }
 
     @Override
@@ -32,7 +39,12 @@ public class Filemodify extends FileChange {
     }
 
     @Override
+    public int getPriority() {
+        return isNewFile() ? 0 : 1;
+    }
+
+    @Override
     public String toString() {
-        return "M " + getPath();
+        return (isNewFile() ? "A " : "M ") + getPath();
     }
 }

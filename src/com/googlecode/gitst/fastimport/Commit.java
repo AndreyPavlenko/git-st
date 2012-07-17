@@ -24,7 +24,7 @@ public class Commit implements FastimportCommand {
 
     public Commit(final CommitId id) {
         _id = id;
-        _changes = new ArrayList<FileChange>();
+        _changes = new ArrayList<>();
     }
 
     public CommitId getId() {
@@ -56,8 +56,8 @@ public class Commit implements FastimportCommand {
             final StringBuilder sb = new StringBuilder();
             final Set<String> comments = new HashSet<>();
 
-            for (final FileChange change : _changes) {
-                final String comment = change.getComment();
+            for (final FileChange c : getChanges()) {
+                final String comment = c.getComment();
 
                 if (comment != null) {
                     comments.add(comment);
@@ -97,8 +97,8 @@ public class Commit implements FastimportCommand {
         _fromCommittiSh = fromCommittiSh;
     }
 
-    public void addChange(final FileChange cmd) {
-        _changes.add(cmd);
+    public void addChange(final FileChange c) {
+        getChanges().add(c);
     }
 
     @Override
@@ -131,8 +131,8 @@ public class Commit implements FastimportCommand {
             s.print('\n');
         }
 
-        for (final FileChange cmd : _changes) {
-            cmd.write(s);
+        for (final FileChange c : getChanges()) {
+            c.write(s);
         }
 
         s.print('\n');

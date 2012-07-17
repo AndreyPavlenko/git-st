@@ -14,7 +14,7 @@ import java.util.TreeMap;
 
 import com.googlecode.gitst.fastimport.Commit;
 import com.googlecode.gitst.fastimport.CommitId;
-import com.googlecode.gitst.fastimport.FileChange;
+import com.googlecode.gitst.fastimport.FastImport;
 import com.googlecode.gitst.fastimport.FileData;
 import com.googlecode.gitst.fastimport.Filedelete;
 import com.googlecode.gitst.fastimport.Filemodify;
@@ -38,9 +38,11 @@ public class Pull {
     private final DateFormat _logDateFormat = DateFormat.getDateTimeInstance(
             DateFormat.SHORT, DateFormat.SHORT);
     private final Repo _repo;
+    private final Logger _log;
 
-    public Pull(final Repo repo) {
+    public Pull(final Repo repo, final Logger logger) {
         _repo = repo;
+        _log = logger;
     }
 
     public static void main(final String[] args) {
@@ -65,7 +67,7 @@ public class Pull {
                 }
 
                 try (final Repo repo = new Repo(props)) {
-                    new Pull(repo).pull();
+                    new Pull(repo, Logger.createConsoleLogger()).pull();
                 }
             } catch (final IllegalArgumentException ex) {
                 System.err.println(ex.getMessage());
@@ -85,10 +87,14 @@ public class Pull {
         return _repo;
     }
 
+    public Logger getLogger() {
+        return _log;
+    }
+
     public void pull() throws IOException, InterruptedException,
             ExecutionException {
         final Repo repo = getRepo();
-        
+
         repo.isBare();
         final Git git = repo.getGit();
         final View v = repo.connect();
@@ -105,18 +111,18 @@ public class Pull {
         diff.addItemUpdateListener(listener,
                 repo.getServer().typeForName("File"));
 
-        echo("Requesting changes since " + startDate);
-        echo("");
+        _log.echo("Requesting changes since " + startDate);
+        _log.echo("");
         diff.compare(ViewConfiguration.createFromTime(startDate),
                 ViewConfiguration.createFromTime(endDate));
 
         final Collection<Commit> commits = listener.getCommits().values();
 
         if (!commits.isEmpty()) {
-            echo("");
-            echo("Executing git fast-import");
-            echo("");
-            fastImport(commits);
+            _log.echo("");
+            _log.echo("Executing git fast-import");
+            _log.echo("");
+            new FastImport(repo, commits, getLogger()).exec();
 
             ole = String.valueOf(endDate.getLongValue());
             sha = git.getCurrentSha(props.getRepoDir(), repo.getBranchName());
@@ -128,72 +134,12 @@ public class Pull {
                 git.checkout(repo.getBranchName()).exec().waitFor();
             }
         } else {
-            echo("No changes found");
+            _log.echo("No changes found");
         }
     }
 
     private static void printHelp(final PrintStream ps) {
         ps.println("Usage: git st pull [-u <user>] [-p password] [-d <directory>] [-c <confdir>]");
-    }
-
-    private void fastImport(final Collection<Commit> commits)
-            throws IOException, InterruptedException, ExecutionException {
-        final Repo repo = getRepo();
-        final Git git = repo.getGit();
-        final Exec exec = git.fastImport().exec();
-        final Process proc = exec.getProcess();
-        final String branch = repo.getBranchName();
-        long mark = git.getLatestMark();
-
-        try {
-            try (final PrintStream s = new PrintStream(proc.getOutputStream())) {
-                for (final Commit cmt : commits) {
-                    final CommitId id = cmt.getId();
-                    final String committer = repo.toCommitter(id.getUserId());
-                    final String comment = cmt.getComment();
-
-                    echo(_logDateFormat.format(id.getTime()) + " " + committer
-                            + ':');
-
-                    if ((comment != null) && (comment.trim().length() > 0)) {
-                        echo(comment);
-                        echo("");
-                    }
-
-                    for (final FileChange c : cmt.getChanges()) {
-                        echo(c);
-                    }
-
-                    echo("--------------------------------------------------------------------------------");
-
-                    cmt.setMark(":" + (++mark));
-                    cmt.setBranch(branch);
-                    cmt.setCommitter(committer);
-
-                    if (mark != 1) {
-                        cmt.setFromCommittiSh(':' + String.valueOf(mark - 1));
-                    }
-
-                    cmt.write(s);
-                }
-
-                echo("");
-            }
-
-            exec.waitFor();
-
-            if (proc.exitValue() != 0) {
-                throw new ExecutionException(
-                        "git fast-import failed with exit code: "
-                                + proc.exitValue(), proc.exitValue());
-            }
-        } finally {
-            proc.destroy();
-        }
-    }
-
-    private static final void echo(final Object msg) {
-        System.out.println(msg);
     }
 
     private final class ViewListener implements FolderUpdateListener,
@@ -211,7 +157,7 @@ public class Pull {
             final long time = f.getCreatedTime().getLongValue();
             final int user = f.getCreatedBy();
             final Commit cmt = getCommit(user, time);
-            cmt.addChange(new Filemodify(path, new FileData(f)));
+            cmt.addChange(new Filemodify(path, new FileData(f), true));
             logChange(time, "A", path);
         }
 
@@ -222,7 +168,7 @@ public class Pull {
             final long time = f.getModifiedTime().getLongValue();
             final int user = f.getModifiedBy();
             final Commit cmt = getCommit(user, time);
-            cmt.addChange(new Filemodify(path, new FileData(f)));
+            cmt.addChange(new Filemodify(path, new FileData(f), false));
             logChange(time, "M", path);
         }
 
@@ -316,7 +262,7 @@ public class Pull {
 
         private void logChange(final long time, final String type,
                 final String path) {
-            echo(_logDateFormat.format(time) + "| " + type + ' ' + path);
+            _log.echo(_logDateFormat.format(time) + "| " + type + ' ' + path);
         }
     }
 }

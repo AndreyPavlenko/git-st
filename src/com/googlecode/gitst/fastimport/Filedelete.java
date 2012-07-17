@@ -13,15 +13,20 @@ public class Filedelete extends FileChange {
     }
 
     @Override
+    public String getComment() {
+        return null;
+    }
+
+    @Override
+    public int getPriority() {
+        return 2;
+    }
+
+    @Override
     public void write(final PrintStream s) throws IOException {
         s.print("D ");
         s.print(getPath());
         s.print('\n');
-    }
-
-    @Override
-    public String getComment() {
-        return null;
     }
 
     @Override
