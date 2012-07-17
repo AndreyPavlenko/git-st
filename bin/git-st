@@ -14,7 +14,7 @@ JAR_DIR="@JAR_DIR@"
 CFG_DIR="@CFG_DIR@"
 PKG_NAME="com.googlecode.gitst"
 
-if [ ! -f "$JAR_DIR/$JAR_NAME" ]
+if [ ! -f "${JAR_DIR}/${JAR_NAME}" ]
 then
     echo "$JAR_NAME not found in $JAR_DIR" >&2
     exit 1
@@ -22,9 +22,13 @@ fi
 
 if [ "$OSTYPE" = "cygwin" ]
 then
-    PS=";"
+    PS=';'
+    ORIG_IFS=$IFS
+    IFS=$PS
+    for i in $STARTEAM_JAVA_API; do LIBRARY_PATH="${LIBRARY_PATH}${PS}$(dirname "$i")"; done
+    IFS=$ORIG_IFS
 else
-    PS=":"
+    PS=':'
 fi
 
 case $1 in
@@ -43,5 +47,11 @@ case $1 in
         ;;
 esac
 
-exec java -cp "$JAR_DIR/$JAR_NAME$PS$STARTEAM_JAVA_API" "$PKG_NAME.$CLASS_NAME" -c "$CFG_DIR" $*
+shift
 
+if [ -z "$LIBRARY_PATH" ]
+then
+    exec java -cp "${JAR_DIR}/${JAR_NAME}${PS}${STARTEAM_JAVA_API}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $*
+else
+    exec java -cp "${JAR_DIR}/${JAR_NAME}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $*
+fi

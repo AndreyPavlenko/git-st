@@ -1,6 +1,9 @@
 package com.googlecode.gitst;
 
+import static com.googlecode.gitst.RepoProperties.PROP_AUTO_LOCATE_CACHE_AGENT;
 import static com.googlecode.gitst.RepoProperties.PROP_BRANCH;
+import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_HOST;
+import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_BRANCH;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_NAME_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_HOST;
@@ -18,6 +21,7 @@ import java.util.StringTokenizer;
 
 import com.starbase.starteam.Project;
 import com.starbase.starteam.Server;
+import com.starbase.starteam.ServerInfo;
 import com.starbase.starteam.User;
 import com.starbase.starteam.View;
 
@@ -73,7 +77,29 @@ public class Repo implements AutoCloseable {
 
     public synchronized View connect() {
         if (_server == null) {
-            _server = new Server(getHost(), getPort());
+            final RepoProperties props = getRepoProperties();
+            final ServerInfo info = new ServerInfo();
+
+            if (Boolean.parseBoolean(props.getProperty(
+                    PROP_AUTO_LOCATE_CACHE_AGENT, "false"))) {
+                info.setAutoLocateCacheAgent(true);
+            } else {
+                final String cah = props.getProperty(PROP_CACHE_AGENT_HOST,
+                        null);
+                final String cap = props.getProperty(PROP_CACHE_AGENT_PORT,
+                        null);
+
+                if (cah != null) {
+                    info.setMPXCacheAgentAddress(cah);
+                }
+                if (cap != null) {
+                    info.setMPXCacheAgentPort(Integer.parseInt(cap));
+                }
+            }
+
+            info.setHost(getHost());
+            info.setPort(getPort());
+            _server = new Server(info);
             _server.connect();
             _currentUserId = _server.logOn(getUserName(), getPassword());
 
@@ -156,8 +182,8 @@ public class Repo implements AutoCloseable {
     }
 
     public boolean isBare() {
-        RepoProperties props = getRepoProperties();
-        return props.getGitstDir().getParent().equals(props.getRepoDir());
+        final RepoProperties props = getRepoProperties();
+        return props.getGitstDir().getParentFile().equals(props.getRepoDir());
     }
 
     public String toCommitter(final int userId) {

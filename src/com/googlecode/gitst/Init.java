@@ -1,14 +1,18 @@
 package com.googlecode.gitst;
 
+import static com.googlecode.gitst.RepoProperties.PROP_AUTO_LOCATE_CACHE_AGENT;
 import static com.googlecode.gitst.RepoProperties.PROP_BRANCH;
+import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_HOST;
+import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_BRANCH;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_NAME_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_HOST;
+import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_PROJECT;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_NAME_PATTERN;
-import static com.googlecode.gitst.RepoProperties.*;
+import static com.googlecode.gitst.RepoProperties.PROP_VIEW;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +36,7 @@ public class Init {
                 final String user = a.get("-u", null);
                 final String password = a.get("-pwd", null);
                 final String branch = a.get("-b", PROP_DEFAULT_BRANCH);
+                final String ca = a.get("-ca", null);
                 final File dir = new File(a.get("-d", "."));
 
                 if (!dir.exists()) {
@@ -61,6 +66,23 @@ public class Init {
                 if (password != null) {
                     props.setRepoProperty(PROP_PASSWORD, password);
                 }
+                if (ca != null) {
+                    if ("auto".equals(ca)) {
+                        props.setRepoProperty(PROP_AUTO_LOCATE_CACHE_AGENT,
+                                "true");
+                    } else {
+                        final int ind = ca.indexOf(':');
+
+                        if (ind == -1) {
+                            props.setRepoProperty(PROP_CACHE_AGENT_HOST, ca);
+                        } else {
+                            props.setRepoProperty(PROP_CACHE_AGENT_HOST,
+                                    ca.substring(0, ind));
+                            props.setRepoProperty(PROP_CACHE_AGENT_PORT,
+                                    ca.substring(ind + 1));
+                        }
+                    }
+                }
 
                 props.saveRepoProperties();
                 props.saveRepoUserMapings();
@@ -76,6 +98,7 @@ public class Init {
     }
 
     private static void printHelp(final PrintStream ps) {
-        ps.println("Usage: git st init -h <host> -p <port> -P <project> -V <view> [-u <user>] [-b <branch>] [-d <directory>] [--bare]");
+        ps.println("Usage: git st init -h <host> -p <port> -P <project> -V <view> "
+                + "[-u <user>] [-b <branch>] [-d <directory>] [--bare] [-ca <CacheAgent>]");
     }
 }

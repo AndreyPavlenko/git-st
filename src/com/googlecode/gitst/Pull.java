@@ -88,6 +88,8 @@ public class Pull {
     public void pull() throws IOException, InterruptedException,
             ExecutionException {
         final Repo repo = getRepo();
+        
+        repo.isBare();
         final Git git = repo.getGit();
         final View v = repo.connect();
         final RepoProperties props = repo.getRepoProperties();
@@ -114,7 +116,7 @@ public class Pull {
             echo("");
             echo("Executing git fast-import");
             echo("");
-            fastImport(commits, sha);
+            fastImport(commits);
 
             ole = String.valueOf(endDate.getLongValue());
             sha = git.getCurrentSha(props.getRepoDir(), repo.getBranchName());
@@ -134,18 +136,17 @@ public class Pull {
         ps.println("Usage: git st pull [-u <user>] [-p password] [-d <directory>] [-c <confdir>]");
     }
 
-    private void fastImport(final Collection<Commit> commits, final String sha)
+    private void fastImport(final Collection<Commit> commits)
             throws IOException, InterruptedException, ExecutionException {
         final Repo repo = getRepo();
         final Git git = repo.getGit();
         final Exec exec = git.fastImport().exec();
         final Process proc = exec.getProcess();
         final String branch = repo.getBranchName();
+        long mark = git.getLatestMark();
 
         try {
             try (final PrintStream s = new PrintStream(proc.getOutputStream())) {
-                int i = 1;
-
                 for (final Commit cmt : commits) {
                     final CommitId id = cmt.getId();
                     final String committer = repo.toCommitter(id.getUserId());
@@ -165,18 +166,15 @@ public class Pull {
 
                     echo("--------------------------------------------------------------------------------");
 
-                    cmt.setMark(':' + String.valueOf(i));
+                    cmt.setMark(":" + (++mark));
                     cmt.setBranch(branch);
                     cmt.setCommitter(committer);
 
-                    if (i != 1) {
-                        cmt.setFromCommittiSh(':' + String.valueOf(i - 1));
-                    } else if (sha != null) {
-                        cmt.setFromCommittiSh(sha);
+                    if (mark != 1) {
+                        cmt.setFromCommittiSh(':' + String.valueOf(mark - 1));
                     }
 
                     cmt.write(s);
-                    i++;
                 }
 
                 echo("");

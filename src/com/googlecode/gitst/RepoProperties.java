@@ -17,6 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RepoProperties {
     public static final String PROP_HOST = "Host";
     public static final String PROP_PORT = "Port";
+    public static final String PROP_CACHE_AGENT_HOST = "CacheAgentHost";
+    public static final String PROP_CACHE_AGENT_PORT = "CacheAgentPort";
+    public static final String PROP_AUTO_LOCATE_CACHE_AGENT = "AutoLocateCacheAgent";
     public static final String PROP_PROJECT = "Project";
     public static final String PROP_VIEW = "View";
     public static final String PROP_USER = "User";
