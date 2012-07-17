@@ -110,7 +110,9 @@
 
     <target name="distrib-zip" depends="assemble-zip">
         <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
-            <zipfileset dir="${assemble.zip.dir}" includes="**/**" />
+            <zipfileset dir="${assemble.zip.dir}"
+                        includes="**/**"
+                        excludes="${project.name}/bin/${project.name}" />
             <zipfileset dir="${assemble.zip.dir}"
                         filemode="755"
                         includes="${project.name}/bin/${project.name}" />
