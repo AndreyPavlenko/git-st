@@ -6,6 +6,7 @@ import java.text.DateFormat;
 import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
 
 import com.googlecode.gitst.Exec;
 import com.googlecode.gitst.ExecutionException;
@@ -13,6 +14,8 @@ import com.googlecode.gitst.Git;
 import com.googlecode.gitst.Logger;
 import com.googlecode.gitst.Logger.ProgressBar;
 import com.googlecode.gitst.Repo;
+import com.starbase.starteam.CheckoutManager;
+import com.starbase.starteam.CheckoutOptions;
 import com.starbase.starteam.File;
 import com.starbase.starteam.Folder;
 import com.starbase.starteam.FolderUpdateEvent;
@@ -48,10 +51,10 @@ public class FastImport {
     }
 
     public Collection<Commit> loadChanges(final OLEDate startDate,
-            final OLEDate endDate) {
+            final OLEDate endDate, final boolean checkout) {
         final Repo repo = getRepo();
         final View v = repo.connect();
-        final ViewListener listener = new ViewListener();
+        final ViewListener listener = new ViewListener(checkout);
         final ViewConfigurationDiffer diff = new ViewConfigurationDiffer(v);
 
         _log.echo("Requesting changes since " + startDate);
@@ -128,6 +131,30 @@ public class FastImport {
     private final class ViewListener implements FolderUpdateListener,
             ItemUpdateListener {
         private final Map<CommitId, Commit> _commits = new TreeMap<>();
+        private final CheckoutManager _cmgr;
+        private final ExecutorService _threadPool;
+
+        ViewListener(final boolean checkout) {
+            if (checkout) {
+                final Repo repo = getRepo();
+                _threadPool = repo.getThreadPool();
+
+                if (_threadPool != null) {
+                    final View view = repo.getView();
+                    final CheckoutOptions co = new CheckoutOptions(view);
+                    co.setEOLConversionEnabled(false);
+                    co.setOptimizeForSlowConnections(true);
+                    co.setUpdateStatus(false);
+                    co.setForceCheckout(true);
+                    _cmgr = repo.getView().createCheckoutManager(co);
+                } else {
+                    _cmgr = null;
+                }
+            } else {
+                _cmgr = null;
+                _threadPool = null;
+            }
+        }
 
         public Map<CommitId, Commit> getCommits() {
             return _commits;
@@ -140,8 +167,13 @@ public class FastImport {
             final long time = f.getCreatedTime().getLongValue();
             final int user = f.getCreatedBy();
             final Commit cmt = getCommit(user, time);
-            cmt.addChange(new Filemodify(path, new FileData(f), true));
+            final FileData data = new FileData(f);
+            cmt.addChange(new Filemodify(path, data, true));
             logChange(time, "A", path);
+
+            if (_cmgr != null) {
+                data.checkout(_cmgr, _threadPool);
+            }
         }
 
         @Override
@@ -151,8 +183,13 @@ public class FastImport {
             final long time = f.getModifiedTime().getLongValue();
             final int user = f.getModifiedBy();
             final Commit cmt = getCommit(user, time);
-            cmt.addChange(new Filemodify(path, new FileData(f), false));
+            final FileData data = new FileData(f);
+            cmt.addChange(new Filemodify(path, data, false));
             logChange(time, "M", path);
+
+            if (_cmgr != null) {
+                data.checkout(_cmgr, _threadPool);
+            }
         }
 
         @Override

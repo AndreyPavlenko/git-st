@@ -4,6 +4,7 @@ import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_SYNC_DATE;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Collection;
@@ -47,6 +48,9 @@ public class Pull {
                 }
 
                 try (final Repo repo = new Repo(props)) {
+                    final File tempDir = new File(props.getGitstDir(), "tmp");
+                    tempDir.mkdirs();
+                    System.setProperty("java.io.tmpdir", tempDir.getPath());
                     new Pull(repo, Logger.createConsoleLogger()).pull();
                 }
             } catch (final IllegalArgumentException ex) {
@@ -84,7 +88,7 @@ public class Pull {
                 : new OLEDate(Double.parseDouble(lastSync));
         final OLEDate endDate = repo.getServer().getCurrentTime();
         final Collection<Commit> commits = fastImport.loadChanges(startDate,
-                endDate);
+                endDate, true);
 
         if (!commits.isEmpty()) {
             _log.echo();

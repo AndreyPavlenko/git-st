@@ -7,17 +7,20 @@ import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_BRANCH;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_NAME_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_HOST;
+import static com.googlecode.gitst.RepoProperties.PROP_MAX_THREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_PROJECT;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
-import static com.googlecode.gitst.RepoProperties.PROP_USER_NAME_PATTERN;
+import static com.googlecode.gitst.RepoProperties.*;
 import static com.googlecode.gitst.RepoProperties.PROP_VIEW;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.starbase.starteam.Project;
 import com.starbase.starteam.Server;
@@ -38,13 +41,24 @@ public class Repo implements AutoCloseable {
     private final String _password;
     private final String _branchName;
     private final String _userNamePattern;
+    private final int _maxThreads;
     private final Git _git;
     private Server _server;
     private Project _project;
     private View _view;
     private int _currentUserId;
+    private ExecutorService _threadPool;
 
     public Repo(final RepoProperties repoProperties) {
+        final String maxThreads = repoProperties.getProperty(PROP_MAX_THREADS,
+                PROP_DEFAULT_MAX_THREADS);
+
+        try {
+            _maxThreads = Integer.parseInt(maxThreads);
+        } catch (final NumberFormatException ex) {
+            throw new ConfigurationException("The property " + PROP_MAX_THREADS
+                    + " has invalid value: " + maxThreads, ex);
+        }
         _userName = repoProperties.getOrRequestProperty(PROP_USER,
                 "Username: ", false);
         _password = repoProperties.getOrRequestProperty(PROP_PASSWORD,
@@ -85,6 +99,7 @@ public class Repo implements AutoCloseable {
 
             info.setHost(getHost());
             info.setPort(getPort());
+            info.setMPXCacheAgentThreadCount(getMaxThreads());
             _server = new Server(info);
             _server.connect();
             _currentUserId = _server.logOn(getUserName(), getPassword());
@@ -107,6 +122,15 @@ public class Repo implements AutoCloseable {
         if (_server != null) {
             final Server s = _server;
             _server = null;
+            _project = null;
+            _view = null;
+            _currentUserId = 0;
+
+            if (_threadPool != null) {
+                _threadPool.shutdown();
+                _threadPool = null;
+            }
+
             s.disconnect();
         }
     }
@@ -151,6 +175,10 @@ public class Repo implements AutoCloseable {
         return _server;
     }
 
+    public int getMaxThreads() {
+        return _maxThreads;
+    }
+
     public synchronized Project getProject() {
         return _project;
     }
@@ -161,6 +189,13 @@ public class Repo implements AutoCloseable {
 
     public synchronized int getCurrentUserId() {
         return _currentUserId;
+    }
+
+    public synchronized ExecutorService getThreadPool() {
+        if (_threadPool == null) {
+            _threadPool = Executors.newFixedThreadPool(getMaxThreads());
+        }
+        return _threadPool;
     }
 
     public Git getGit() {

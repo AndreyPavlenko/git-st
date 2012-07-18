@@ -1,6 +1,6 @@
 package com.googlecode.gitst;
 
-import static com.googlecode.gitst.RepoProperties.PROP_AUTO_LOCATE_CACHE_AGENT;
+import static com.googlecode.gitst.RepoProperties.*;
 import static com.googlecode.gitst.RepoProperties.PROP_BRANCH;
 import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_HOST;
 import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_PORT;
@@ -37,6 +37,7 @@ public class Init {
                 final String password = a.get("-pwd", null);
                 final String branch = a.get("-b", PROP_DEFAULT_BRANCH);
                 final String ca = a.get("-ca", null);
+                final String t = a.get("-t", null);
                 final File dir = new File(a.get("-d", "."));
 
                 if (!dir.exists()) {
@@ -65,6 +66,10 @@ public class Init {
                 }
                 if (password != null) {
                     props.setRepoProperty(PROP_PASSWORD, password);
+                }
+                if (t != null) {
+                    props.setRepoProperty(PROP_MAX_THREADS,
+                            String.valueOf(Integer.parseInt(t)));
                 }
                 if (ca != null) {
                     if ("auto".equals(ca)) {
@@ -99,6 +104,7 @@ public class Init {
 
     private static void printHelp(final PrintStream ps) {
         ps.println("Usage: git st init -h <host> -p <port> -P <project> -V <view> "
-                + "[-u <user>] [-b <branch>] [-d <directory>] [--bare] [-ca <CacheAgent>]");
+                + "[-u <user>] [-b <branch>] [-d <directory>] [-ca <CacheAgent>] "
+                + "[-t <MaxThreads>] [--bare]");
     }
 }

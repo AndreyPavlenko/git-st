@@ -25,8 +25,10 @@ public class RepoProperties {
     public static final String PROP_USER = "User";
     public static final String PROP_PASSWORD = "Password";
     public static final String PROP_BRANCH = "Branch";
+    public static final String PROP_MAX_THREADS = "MaxThreads";
     public static final String PROP_USER_NAME_PATTERN = "UserNamePattern";
     public static final String PROP_DEFAULT_BRANCH = "master";
+    public static final String PROP_DEFAULT_MAX_THREADS = "3";
     public static final String PROP_DEFAULT_USER_NAME_PATTERN = "{0} <{2}.{1}@mycompany.com>";
     public static final String META_PROP_LAST_SYNC_DATE = "LastSyncDate";
 
