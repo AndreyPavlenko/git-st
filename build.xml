@@ -67,10 +67,6 @@
             <filterchain>
                 <replacetokens>
                     <token key="JAR_NAME" value="${jar.name}" />
-                    <token key="JAR_DIR"
-                           value="$(dirname &quot;$0&quot;)/../lib" />
-                    <token key="CFG_DIR"
-                           value="$(dirname &quot;$0&quot;)/../config" />
                 </replacetokens>
             </filterchain>
         </copy>
@@ -94,8 +90,6 @@
             <filterchain>
                 <replacetokens>
                     <token key="JAR_NAME" value="${jar.name}" />
-                    <token key="JAR_DIR" value="/usr/lib/git-core" />
-                    <token key="CFG_DIR" value="/etc/${project.name}" />
                 </replacetokens>
             </filterchain>
         </copy>

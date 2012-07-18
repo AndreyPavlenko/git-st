@@ -1,37 +1,75 @@
-#!/bin/sh
+#!/bin/bash
 
-if [ -z "$STARTEAM_JAVA_API" ]
-then
-    echo "System environment variable STARTEAM_JAVA_API is not set" >&2
-    echo "Please set this variable first." >&2
-    echo "Example:" >&2
-    echo "export STARTEAM_JAVA_API=\"/opt/StarTeamCP_2009/lib/starteam110.jar\"" >&2
-    exit 1
-fi
-
+DIR=$(dirname "${0}")
 JAR_NAME="@JAR_NAME@"
-JAR_DIR="@JAR_DIR@"
-CFG_DIR="@CFG_DIR@"
 PKG_NAME="com.googlecode.gitst"
+CFG_DIR="/etc/$(basename "${0}")"
 
-if [ ! -f "${JAR_DIR}/${JAR_NAME}" ]
+if [[ ${OS} = *indows* ]]
 then
-    echo "$JAR_NAME not found in $JAR_DIR" >&2
-    exit 1
-fi
-
-if [ "$OSTYPE" = "cygwin" ]
-then
+    IS_WINDOWS="true"
     PS=';'
-    ORIG_IFS=$IFS
-    IFS=$PS
-    for i in $STARTEAM_JAVA_API; do LIBRARY_PATH="${LIBRARY_PATH}${PS}$(dirname "$i")"; done
-    IFS=$ORIG_IFS
 else
     PS=':'
 fi
 
-case $1 in
+if [ -z "${STARTEAM_JAVA_API}" ]
+then
+    echo "System environment variable STARTEAM_JAVA_API is not set." >&2
+    echo "Please set this variable first." >&2
+    echo "Example:" >&2
+    
+    if [ -z "${IS_WINDOWS}" ]
+    then
+        echo "export STARTEAM_JAVA_API=\"/opt/StarTeamCP_2009/lib/starteam110.jar\"" >&2
+    else
+        echo "export STARTEAM_JAVA_API=\"c:/Program Files/Borland/StarTeam SDK 11.0/Lib/starteam110.jar\"" >&2
+    fi
+    exit 1
+fi
+
+if [ -f "${DIR}/${JAR_NAME}" ]
+then
+    JAR_PATH="${DIR}/${JAR_NAME}"
+elif [ -f "${DIR}/../lib/${JAR_NAME}" ]
+then
+    JAR_PATH="${DIR}/../lib/${JAR_NAME}"
+else
+    echo "${JAR_NAME} not found" >&2
+    exit 1
+fi
+
+if [ ! -d "${CFG_DIR}" ]
+then
+    CFG_DIR="${DIR}/../config"
+fi
+
+if [ "${OSTYPE}" = "cygwin" ]
+then
+    JAR_PATH=$(cygpath -m "${JAR_PATH}")
+    CFG_DIR=$(cygpath -m "${CFG_DIR}")
+    
+    ORIG_IFS=${IFS}
+    IFS=${PS}
+    for i in ${STARTEAM_JAVA_API}
+    do 
+        i=$(cygpath -m "${i}")
+        i=$(dirname "${i}")
+        LIBRARY_PATH="${LIBRARY_PATH}${PS}${i}"
+    done
+    IFS=${ORIG_IFS}
+elif [ ! -z "${IS_WINDOWS}" ]
+then
+    ORIG_IFS=${IFS}
+    IFS=${PS}
+    for i in ${STARTEAM_JAVA_API}
+    do
+        LIBRARY_PATH="${LIBRARY_PATH}${PS}$(dirname "${i}")"
+    done
+    IFS=${ORIG_IFS}
+fi
+
+case ${1} in
     init)
         CLASS_NAME="Init"
         ;;
@@ -49,9 +87,9 @@ esac
 
 shift
 
-if [ -z "$LIBRARY_PATH" ]
+if [ -z "${LIBRARY_PATH}" ]
 then
-    exec java -cp "${JAR_DIR}/${JAR_NAME}${PS}${STARTEAM_JAVA_API}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $*
+    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $@
 else
-    exec java -cp "${JAR_DIR}/${JAR_NAME}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $*
+    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $@
 fi
