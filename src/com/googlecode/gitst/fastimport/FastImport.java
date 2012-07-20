@@ -121,7 +121,7 @@ public class FastImport {
         final CommitId id = cmt.getId();
         final String committer = repo.toCommitter(id.getUserId());
 
-        _log.echo(repo.getShortDateFormat().format(id.getTime()) + " "
+        _log.echo(repo.getDateTimeFormat().format(id.getTime()) + " "
                 + committer + ':');
         _log.echo(cmt.getComment());
         _log.echo();
@@ -264,7 +264,7 @@ public class FastImport {
     }
 
     private void logChange(final long time, final String type, final String path) {
-        _log.echo(getRepo().getShortDateFormat().format(time) + "| " + type
+        _log.echo(getRepo().getDateTimeFormat().format(time) + "| " + type
                 + ' ' + path);
     }
 

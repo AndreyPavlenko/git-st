@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -49,7 +50,7 @@ public class Repo implements AutoCloseable {
     private final String _userNamePattern;
     private final int _maxThreads;
     private final Git _git;
-    private final DateFormat _shortDateFormat;
+    private final DateFormat _dateTimeFormat;
     private Server _server;
     private Project _project;
     private View _view;
@@ -80,8 +81,7 @@ public class Repo implements AutoCloseable {
         _userNamePattern = repoProperties.getProperty(PROP_USER_NAME_PATTERN,
                 PROP_DEFAULT_USER_NAME_PATTERN);
         _git = new Git(repoProperties.getRepoDir());
-        _shortDateFormat = DateFormat.getDateTimeInstance(DateFormat.SHORT,
-                DateFormat.SHORT);
+        _dateTimeFormat = new SimpleDateFormat("MM.dd.yy HH:mm:ss");
         _repoProperties = repoProperties;
         _logger = logger;
     }
@@ -243,8 +243,8 @@ public class Repo implements AutoCloseable {
         return _git;
     }
 
-    public DateFormat getShortDateFormat() {
-        return _shortDateFormat;
+    public DateFormat getDateTimeFormat() {
+        return _dateTimeFormat;
     }
 
     public static String getPath(final Item i) {
