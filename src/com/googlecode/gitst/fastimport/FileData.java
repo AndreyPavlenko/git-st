@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
+import com.googlecode.gitst.Repo;
 import com.starbase.starteam.CheckoutManager;
 import com.starbase.starteam.File;
 
@@ -19,28 +20,44 @@ import com.starbase.starteam.File;
 public class FileData implements FastimportCommand {
     private static final int MAX_FILE_SIZE = 1024 * 1024 * 10;
     private final File _file;
+    private String _path;
     private Future<java.io.File> _checkout;
 
     public FileData(final File file) {
         _file = file;
     }
 
+    public FileData(final File file, final String path) {
+        _file = file;
+        _path = path;
+    }
+
     public File getFile() {
         return _file;
     }
 
-    @Override
-    public void write(final PrintStream s) throws IOException {
-        s.print("data ");
+    public synchronized String getPath() {
+        if (_path == null) {
+            _path = Repo.getPath(getFile());
+        }
+        return _path;
+    }
 
-        if (_checkout != null) {
+    public Future<java.io.File> getCheckout() {
+        return _checkout;
+    }
+
+    @Override
+    public void write(final Repo repo, final PrintStream s) throws IOException,
+            InterruptedException {
+        s.print("data ");
+        final Future<java.io.File> checkout = getCheckout();
+
+        if (checkout != null) {
             try {
-                final java.io.File tempFile = _checkout.get();
-                writeFile(tempFile, s);
-            } catch (final InterruptedException ex) {
-                throw new RuntimeException(ex);
+                writeFile(checkout.get(), s);
             } catch (final ExecutionException ex) {
-                throw new RuntimeException(ex.getCause());
+                throw new IOException(ex.getCause());
             }
         } else {
             final File f = getFile();
@@ -54,8 +71,9 @@ public class FileData implements FastimportCommand {
                 s.print('\n');
                 baos.writeTo(s);
             } else {
-                final java.io.File tempFile = java.io.File.createTempFile(
-                        f.getName(), ".git-st");
+                final java.io.File tempFile = repo.createTempFile(Repo
+                        .getPath(f));
+                f.checkoutTo(tempFile, 0, false, false, false);
                 writeFile(tempFile, s);
             }
         }
@@ -63,9 +81,13 @@ public class FileData implements FastimportCommand {
         s.print('\n');
     }
 
-    public void checkout(final CheckoutManager mgr,
-            final ExecutorService executor) {
-        _checkout = executor.submit(new Checkout(mgr, getFile()));
+    public synchronized Future<java.io.File> checkout(final Repo repo,
+            final CheckoutManager cmgr, final ExecutorService executor)
+            throws IOException {
+        if (_checkout == null) {
+            _checkout = executor.submit(new Checkout(repo, cmgr, getFile()));
+        }
+        return _checkout;
     }
 
     private static void writeFile(final java.io.File file, final PrintStream s)
@@ -83,21 +105,24 @@ public class FileData implements FastimportCommand {
         }
     }
 
-    private static final class Checkout implements Callable<java.io.File> {
+    private final class Checkout implements Callable<java.io.File> {
+        private final Repo _repo;
         private final CheckoutManager _mgr;
         private final File _file;
 
-        public Checkout(final CheckoutManager mgr, final File file) {
+        public Checkout(final Repo repo, final CheckoutManager mgr,
+                final File file) {
+            _repo = repo;
             _mgr = mgr;
             _file = file;
         }
 
         @Override
-        public java.io.File call() throws Exception {
-            final java.io.File tempFile = java.io.File.createTempFile(
-                    _file.getName(), ".git-st");
-            tempFile.deleteOnExit();
-            _mgr.checkoutTo(_file, tempFile);
+        public java.io.File call() throws IOException {
+            final java.io.File tempFile = _repo.createTempFile(getPath());
+            synchronized (_mgr) {
+                _mgr.checkoutTo(_file, tempFile);
+            }
             return tempFile;
         }
     }

@@ -3,11 +3,13 @@ package com.googlecode.gitst.fastimport;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import com.googlecode.gitst.Repo;
 
 /**
  * @author Andrey Pavlenko
@@ -15,7 +17,7 @@ import java.util.Set;
 public class Commit implements FastimportCommand {
     private final static SimpleDateFormat DATEFORMAT = new SimpleDateFormat("Z");
     private final CommitId _id;
-    private final List<FileChange> _changes;
+    private final Queue<FileChange> _changes;
     private String _branch;
     private String _mark;
     private String _committer;
@@ -24,7 +26,7 @@ public class Commit implements FastimportCommand {
 
     public Commit(final CommitId id) {
         _id = id;
-        _changes = new ArrayList<>();
+        _changes = new ConcurrentLinkedQueue<>();
     }
 
     public CommitId getId() {
@@ -47,11 +49,11 @@ public class Commit implements FastimportCommand {
         return _fromCommittiSh;
     }
 
-    public List<FileChange> getChanges() {
+    public Queue<FileChange> getChanges() {
         return _changes;
     }
 
-    public String getComment() {
+    public synchronized String getComment() {
         if (_comment == null) {
             final StringBuilder sb = new StringBuilder();
             final Set<String> comments = new HashSet<>();
@@ -102,7 +104,8 @@ public class Commit implements FastimportCommand {
     }
 
     @Override
-    public void write(final PrintStream s) throws IOException {
+    public void write(final Repo repo, final PrintStream s) throws IOException,
+            InterruptedException {
         s.print("commit refs/heads/");
         s.print(getBranch());
         s.print('\n');
@@ -123,7 +126,7 @@ public class Commit implements FastimportCommand {
             s.print('\n');
         }
 
-        new TextData(getComment()).write(s);
+        new TextData(getComment()).write(repo, s);
 
         if (_fromCommittiSh != null) {
             s.print("from ");
@@ -132,7 +135,7 @@ public class Commit implements FastimportCommand {
         }
 
         for (final FileChange c : getChanges()) {
-            c.write(s);
+            c.write(repo, s);
         }
 
         s.print('\n');

@@ -69,11 +69,13 @@ public class Git {
         return exec(l);
     }
 
-    public Exec fastExport(final String... args) {
-        final List<String> l = new ArrayList<>(args == null ? 4
-                : 4 + args.length);
+    public Exec fastExport(final String branch, final String... args) {
+        final List<String> l = new ArrayList<>(args == null ? 5
+                : 5 + args.length);
         final File f = getMarksFile();
         final String marks = f.getAbsolutePath();
+        Exec exec;
+
         l.add("fast-export");
         l.add("--no-data");
         l.add("--export-marks=" + marks);
@@ -87,7 +89,28 @@ public class Git {
             }
         }
 
-        return exec(l);
+        l.add(branch);
+        exec = exec(l);
+        exec.setOutStream(null);
+        return exec;
+    }
+
+    public boolean fileExists(final String branch, final String path)
+            throws IOException {
+        try {
+            final Exec exec = exec("cat-file", "-t", branch + ':' + path);
+            exec.setOutStream(null);
+            exec.setErrStream(null);
+            return exec.exec().waitFor() == 0;
+        } catch (final InterruptedException ex) {
+            return false;
+        }
+    }
+
+    public InputStream catFile(final String sha) throws IOException {
+        final Exec exec = exec("cat-file", "blob", sha);
+        exec.setOutStream(null);
+        return exec.exec().getProcess().getInputStream();
     }
 
     public long getLatestMark() throws IOException {

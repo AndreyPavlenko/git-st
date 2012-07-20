@@ -3,16 +3,17 @@ package com.googlecode.gitst.fastimport;
 import java.io.IOException;
 import java.io.PrintStream;
 
+import com.googlecode.gitst.Repo;
+
 /**
  * @author Andrey Pavlenko
  */
-public class Filemodify extends FileChange {
+public class FileModify extends FileChange {
     private final FileData _fileData;
     private final boolean _isNewFile;
+    private String _comment;
 
-    public Filemodify(final String path, final FileData fileData,
-            final boolean isNewFile) {
-        super(path);
+    public FileModify(final FileData fileData, final boolean isNewFile) {
         _fileData = fileData;
         _isNewFile = isNewFile;
     }
@@ -26,16 +27,24 @@ public class Filemodify extends FileChange {
     }
 
     @Override
-    public String getComment() {
-        return getFileData().getFile().getComment();
+    public synchronized String getComment() {
+        if (_comment == null) {
+            _comment = getFileData().getFile().getComment();
+        }
+        return _comment;
+    }
+
+    public String getPath() {
+        return getFileData().getPath();
     }
 
     @Override
-    public void write(final PrintStream s) throws IOException {
+    public void write(final Repo repo, final PrintStream s) throws IOException,
+            InterruptedException {
         s.print("M 100644 inline ");
         s.print(getPath());
         s.print('\n');
-        getFileData().write(s);
+        getFileData().write(repo, s);
     }
 
     @Override

@@ -31,10 +31,18 @@ public class Exec {
         final ProcessBuilder b = getProcessBuilder();
         final Process proc = b.start();
         _process = proc;
-        _outRedirector = new StreamRedirector(proc.getInputStream(), _outStream);
-        _errRedirector = new StreamRedirector(proc.getErrorStream(), _errStream);
-        _outRedirector.start();
-        _errRedirector.start();
+
+        if (_outStream != null) {
+            _outRedirector = new StreamRedirector(proc.getInputStream(),
+                    _outStream);
+            _outRedirector.start();
+        }
+        if (_errStream != null) {
+            _errRedirector = new StreamRedirector(proc.getErrorStream(),
+                    _errStream);
+            _errRedirector.start();
+        }
+
         return this;
     }
 
@@ -70,8 +78,13 @@ public class Exec {
             final StreamRedirector out = _outRedirector;
             final StreamRedirector err = _errRedirector;
             exitCode = p.waitFor();
-            out.waitFor();
-            err.waitFor();
+
+            if (out != null) {
+                out.waitFor();
+            }
+            if (err != null) {
+                err.waitFor();
+            }
         }
 
         return exitCode;

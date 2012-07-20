@@ -5,6 +5,7 @@ import static com.googlecode.gitst.RepoProperties.PROP_BRANCH;
 import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_HOST;
 import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_BRANCH;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAX_THREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_NAME_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_HOST;
 import static com.googlecode.gitst.RepoProperties.PROP_MAX_THREADS;
@@ -12,9 +13,12 @@ import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_PORT;
 import static com.googlecode.gitst.RepoProperties.PROP_PROJECT;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
-import static com.googlecode.gitst.RepoProperties.*;
+import static com.googlecode.gitst.RepoProperties.PROP_USER_NAME_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_VIEW;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.DateFormat;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +26,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.starbase.starteam.Item;
 import com.starbase.starteam.Project;
 import com.starbase.starteam.Server;
 import com.starbase.starteam.ServerInfo;
@@ -33,6 +38,7 @@ import com.starbase.starteam.View;
  */
 public class Repo implements AutoCloseable {
     private final RepoProperties _repoProperties;
+    private final Logger _logger;
     private final String _host;
     private final int _port;
     private final String _projectName;
@@ -43,13 +49,15 @@ public class Repo implements AutoCloseable {
     private final String _userNamePattern;
     private final int _maxThreads;
     private final Git _git;
+    private final DateFormat _shortDateFormat;
     private Server _server;
     private Project _project;
     private View _view;
     private int _currentUserId;
     private ExecutorService _threadPool;
+    private File _tempDir;
 
-    public Repo(final RepoProperties repoProperties) {
+    public Repo(final RepoProperties repoProperties, final Logger logger) {
         final String maxThreads = repoProperties.getProperty(PROP_MAX_THREADS,
                 PROP_DEFAULT_MAX_THREADS);
 
@@ -71,17 +79,22 @@ public class Repo implements AutoCloseable {
                 PROP_DEFAULT_BRANCH);
         _userNamePattern = repoProperties.getProperty(PROP_USER_NAME_PATTERN,
                 PROP_DEFAULT_USER_NAME_PATTERN);
-        _repoProperties = repoProperties;
         _git = new Git(repoProperties.getRepoDir());
+        _shortDateFormat = DateFormat.getDateTimeInstance(DateFormat.SHORT,
+                DateFormat.SHORT);
+        _repoProperties = repoProperties;
+        _logger = logger;
     }
 
     public synchronized View connect() {
         if (_server == null) {
             final RepoProperties props = getRepoProperties();
             final ServerInfo info = new ServerInfo();
+            boolean caEnabled = false;
 
             if (Boolean.parseBoolean(props.getProperty(
                     PROP_AUTO_LOCATE_CACHE_AGENT, "false"))) {
+                caEnabled = true;
                 info.setAutoLocateCacheAgent(true);
             } else {
                 final String cah = props.getProperty(PROP_CACHE_AGENT_HOST,
@@ -90,6 +103,7 @@ public class Repo implements AutoCloseable {
                         null);
 
                 if (cah != null) {
+                    caEnabled = true;
                     info.setMPXCacheAgentAddress(cah);
                 }
                 if (cap != null) {
@@ -99,7 +113,10 @@ public class Repo implements AutoCloseable {
 
             info.setHost(getHost());
             info.setPort(getPort());
+            info.setCompression(true);
             info.setMPXCacheAgentThreadCount(getMaxThreads());
+            info.setEnableCacheAgentForFileContent(caEnabled);
+            info.setEnableCacheAgentForObjectProperties(caEnabled);
             _server = new Server(info);
             _server.connect();
             _currentUserId = _server.logOn(getUserName(), getPassword());
@@ -137,6 +154,10 @@ public class Repo implements AutoCloseable {
 
     public RepoProperties getRepoProperties() {
         return _repoProperties;
+    }
+
+    public Logger getLogger() {
+        return _logger;
     }
 
     public String getHost() {
@@ -193,13 +214,57 @@ public class Repo implements AutoCloseable {
 
     public synchronized ExecutorService getThreadPool() {
         if (_threadPool == null) {
-            _threadPool = Executors.newFixedThreadPool(getMaxThreads());
+            final int n = getMaxThreads();
+
+            if (n > 0) {
+                _threadPool = Executors.newFixedThreadPool(n);
+            }
         }
         return _threadPool;
     }
 
+    public synchronized File getTempDir() {
+        if (_tempDir == null) {
+            _tempDir = createFile(getRepoProperties().getGitstDir(), "tmp");
+            _tempDir.mkdirs();
+            Runtime.getRuntime().addShutdownHook(new DeleteHook(_tempDir));
+        }
+        return _tempDir;
+    }
+
+    public File createTempFile(final String path) throws IOException {
+        final File f = createFile(getTempDir(), path);
+        f.getParentFile().mkdirs();
+        f.createNewFile();
+        return f;
+    }
+
     public Git getGit() {
         return _git;
+    }
+
+    public DateFormat getShortDateFormat() {
+        return _shortDateFormat;
+    }
+
+    public static String getPath(final Item i) {
+        String path;
+
+        if (i instanceof com.starbase.starteam.File) {
+            final com.starbase.starteam.File f = (com.starbase.starteam.File) i;
+            path = f.getParentFolderHierarchy() + f.getName();
+        } else {
+            path = ((com.starbase.starteam.Folder) i).getFolderHierarchy();
+        }
+
+        path = path.replace('\\', '/');
+        final int ind = path.indexOf('/');
+
+        if (ind != -1) {
+            return path.substring(ind + 1);
+        } else {
+            return path;
+        }
     }
 
     public boolean isBare() {
@@ -258,5 +323,35 @@ public class Repo implements AutoCloseable {
         }
 
         throw new ConfigurationException("No such view: " + name);
+    }
+
+    private static File createFile(final File dir, final String path) {
+        File f = new File(dir, path);
+        for (int i = 1; f.exists(); i++) {
+            f = new File(dir, path + i);
+        }
+        return f;
+    }
+
+    private static final class DeleteHook extends Thread {
+        private final File _file;
+
+        public DeleteHook(final File file) {
+            _file = file;
+        }
+
+        @Override
+        public void run() {
+            delete(_file);
+        }
+
+        private static void delete(final File file) {
+            if (file.isDirectory()) {
+                for (final File f : file.listFiles()) {
+                    delete(f);
+                }
+            }
+            file.delete();
+        }
     }
 }

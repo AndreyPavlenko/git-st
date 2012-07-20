@@ -3,6 +3,8 @@ package com.googlecode.gitst.fastimport;
 import java.io.IOException;
 import java.io.PrintStream;
 
+import com.googlecode.gitst.Repo;
+
 /**
  * @author Andrey Pavlenko
  */
@@ -18,7 +20,7 @@ public class TextData implements FastimportCommand {
     }
 
     @Override
-    public void write(final PrintStream s) throws IOException {
+    public void write(final Repo repo, final PrintStream s) throws IOException {
         final byte[] data = getText().getBytes("UTF-8");
         s.print("data ");
         s.print(data.length);

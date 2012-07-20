@@ -5,19 +5,10 @@ package com.googlecode.gitst.fastimport;
  */
 public abstract class FileChange implements FastimportCommand,
         Comparable<FileChange> {
-    private final String _path;
-
-    public FileChange(final String path) {
-        _path = path;
-    }
 
     public abstract String getComment();
 
     public abstract int getPriority();
-
-    public String getPath() {
-        return _path;
-    }
 
     @Override
     public int compareTo(final FileChange c) {

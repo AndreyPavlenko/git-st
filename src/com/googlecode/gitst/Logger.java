@@ -53,6 +53,27 @@ public class Logger {
         _logWriter.flush();
     }
 
+    public synchronized void error(final Object msg, final Throwable ex) {
+        if (_pbar != null) {
+            _pbar.clear();
+            _logWriter.println(msg);
+
+            if (ex != null) {
+                ex.printStackTrace(_logWriter);
+            }
+
+            _pbar.print();
+        } else {
+            _logWriter.println(msg);
+
+            if (ex != null) {
+                ex.printStackTrace(_logWriter);
+            }
+        }
+
+        _logWriter.flush();
+    }
+
     public synchronized ProgressBar createProgressBar(final String message,
             final int total) {
         if (!isProgressBarSupported()) {
@@ -147,8 +168,8 @@ public class Logger {
     public static void main(final String[] args) throws InterruptedException {
         final Logger l = new Logger(System.out, true);
         l.echo("start");
-        final ProgressBar b = l.createProgressBar("Importing to git...    ",
-                10);
+        final ProgressBar b = l
+                .createProgressBar("Importing to git...    ", 10);
 
         for (int i = 0; i < 10; i++) {
             Thread.sleep(1000);

@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 
+import com.googlecode.gitst.Repo;
 import com.starbase.starteam.File;
 
 /**
@@ -22,7 +23,7 @@ public class Data implements FastimportCommand {
     }
 
     @Override
-    public void write(final PrintStream s) throws IOException {
+    public void write(final Repo repo, final PrintStream s) throws IOException {
         final File f = getFile();
         final java.io.File tempFile = java.io.File.createTempFile(f.getName(),
                 ".git-st");
