@@ -82,7 +82,7 @@ public class FastImport {
         return listener.getCommits();
     }
 
-    public void exec(final Collection<Commit> commits) throws IOException,
+    public void submit(final Collection<Commit> commits) throws IOException,
             InterruptedException, ExecutionException {
         _log.echo("Executing git fast-import");
         final Repo repo = getRepo();

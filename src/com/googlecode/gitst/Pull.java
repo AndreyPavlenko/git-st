@@ -90,7 +90,7 @@ public class Pull {
 
         if (!commits.isEmpty()) {
             _log.echo();
-            fastImport.exec(commits.values());
+            fastImport.submit(commits.values());
         } else {
             _log.echo("No changes found");
         }
