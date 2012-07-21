@@ -52,6 +52,8 @@ public class Init {
                     git.exec("init").exec().waitFor();
                 }
 
+                git.exec("config", "core.ignorecase", "false").exec().waitFor();
+
                 final RepoProperties props = new RepoProperties(dir, null);
                 props.setRepoProperty(PROP_HOST, host);
                 props.setRepoProperty(PROP_PORT, String.valueOf(port));
