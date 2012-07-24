@@ -47,12 +47,13 @@ public class FastImport {
         return _repo;
     }
 
-    public Map<CommitId, Commit> loadChanges(final View v,
-            final OLEDate endDate, final boolean checkout) {
+    public Map<CommitId, Commit> loadChanges(final OLEDate endDate,
+            final boolean checkout) {
+        final Repo repo = getRepo();
+        final View v = repo.connect();
         final long end = endDate.getLongValue();
         final ConcurrentSkipListMap<CommitId, Commit> commits = new ConcurrentSkipListMap<>();
         _log.echo("Loading history");
-        _log.echo();
 
         if (checkout) {
             final CheckoutManager cmgr = createCheckoutManager(v);
@@ -66,10 +67,10 @@ public class FastImport {
         return commits;
     }
 
-    public Map<CommitId, Commit> loadChanges(final View v,
-            final OLEDate startDate, final OLEDate endDate,
-            final boolean checkout) {
+    public Map<CommitId, Commit> loadChanges(final OLEDate startDate,
+            final OLEDate endDate, final boolean checkout) {
         final Repo repo = getRepo();
+        final View v = repo.connect();
         final ViewListener listener = new ViewListener(v, checkout);
         final ViewConfigurationDiffer diff = new ViewConfigurationDiffer(v);
 
