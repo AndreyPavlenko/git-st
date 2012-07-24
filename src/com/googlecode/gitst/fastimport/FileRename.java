@@ -68,25 +68,18 @@ public class FileRename extends FileChange {
     @Override
     public void write(final Repo repo, final PrintStream s) throws IOException,
             InterruptedException {
-        if (repo.getGit().fileExists(repo.getBranchName(), getSourcePath())) {
-            s.print("R ");
-            s.print(getSourcePath());
-            s.print(' ');
-            s.print(getDestPath());
-            s.print('\n');
-        } else {
-            // Rename fails for new files, so using delete/create instead.
-            final Item i = getDestItem();
-            new FileDelete(getSourceItem()).write(repo, s);
+        // Git performs rename detection.
+        final Item i = getDestItem();
+        new FileDelete(getSourceItem()).write(repo, s);
 
-            if (i instanceof File) {
-                new FileModify(new FileData((File) i), true).write(repo, s);
-            }
+        if (i instanceof File) {
+            new FileModify(new FileData((File) i), true).write(repo, s);
         }
     }
 
     @Override
     public String toString() {
-        return "R " + getSourcePath() + " -> " + getDestPath();
+        return "R " + Repo.quotePath(getSourcePath()) + " -> "
+                + Repo.quotePath(getDestPath());
     }
 }
