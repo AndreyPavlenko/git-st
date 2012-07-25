@@ -3,13 +3,14 @@ package com.googlecode.gitst;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Map;
 
 import com.googlecode.gitst.fastexport.Commit;
 import com.googlecode.gitst.fastexport.FastExport;
-import com.googlecode.gitst.fastexport.UnsupportedCommandException;
+import com.googlecode.gitst.fastexport.FastExportException;
 
 /**
  * @author Andrey Pavlenko
@@ -24,8 +25,7 @@ public class Push {
         _log = repo.getLogger();
     }
 
-    public static void main(final String[] args)
-            throws UnsupportedCommandException {
+    public static void main(final String[] args) throws FastExportException {
         if (args.length == 0) {
             printHelp(System.out);
         } else {
@@ -69,16 +69,34 @@ public class Push {
     }
 
     public void push() throws IOException, InterruptedException,
-            ExecutionException, UnsupportedCommandException {
+            ExecutionException, FastExportException {
         long time = System.currentTimeMillis();
         final Repo repo = getRepo();
         final FastExport exp = new FastExport(repo);
-        final Map<Long, Commit> commits = exp.loadChanges();
+        final File marksFile = repo.getGit().getMarksFile();
+        final Marks marks = repo.getMarks();
+        boolean ok = false;
 
-        time = (System.currentTimeMillis() - time) / 1000;
-        _log.echo("Total time: "
-                + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
-                        + (time % 60) + "s"));
+        try {
+            final Map<Integer, Commit> commits = exp.loadChanges();
+
+            if (commits.isEmpty()) {
+                repo.getLogger().echo("No changes found");
+            } else {
+                exp.submit(commits);
+                throw new RuntimeException();
+            }
+
+            time = (System.currentTimeMillis() - time) / 1000;
+            _log.echo("Total time: "
+                    + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
+                            + (time % 60) + "s"));
+            ok = true;
+        } finally {
+            if (!ok && !marks.isEmpty()) {
+                marks.store(marksFile);
+            }
+        }
     }
 
     private static void printHelp(final PrintStream ps) {

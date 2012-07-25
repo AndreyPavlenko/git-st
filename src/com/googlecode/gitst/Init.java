@@ -60,6 +60,8 @@ public class Init {
                 props.setRepoProperty(PROP_PROJECT, project);
                 props.setRepoProperty(PROP_VIEW, view);
                 props.setRepoProperty(PROP_BRANCH, branch);
+                props.setRepoProperty(PROP_IGNORE_FILES,
+                        PROP_DEFAULT_IGNORE_FILES);
                 props.setRepoProperty(PROP_USER_NAME_PATTERN,
                         PROP_DEFAULT_USER_NAME_PATTERN);
 

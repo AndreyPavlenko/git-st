@@ -1,11 +1,10 @@
 package com.googlecode.gitst;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,14 +69,15 @@ public class Git {
     }
 
     public Exec fastExport(final String branch, final String... args) {
-        final List<String> l = new ArrayList<>(args == null ? 5
-                : 5 + args.length);
+        final List<String> l = new ArrayList<>(args == null ? 6
+                : 6 + args.length);
         final File f = getMarksFile();
         final String marks = f.getAbsolutePath();
         Exec exec;
 
         l.add("fast-export");
         l.add("--no-data");
+        l.add("-C");
         l.add("--export-marks=" + marks);
 
         if (f.exists()) {
@@ -113,45 +113,24 @@ public class Git {
         return exec.exec().getProcess().getInputStream();
     }
 
-    public long getLatestMark() throws IOException {
-        final File marks = getMarksFile();
+    public File catFile(final String sha, final File toFile) throws IOException {
+        final byte[] buff = new byte[8192];
 
-        if (marks.isFile()) {
-            try (InputStream in = new BufferedInputStream(new FileInputStream(
-                    marks))) {
-                final StreamReader r = new StreamReader(in);
-                long max = 0L;
-
-                for (String s = r.readLine(); s != null; s = r.readLine()) {
-                    final long mark = Long.parseLong(s.substring(
-                            s.indexOf(':') + 1, s.indexOf(' ')));
-                    if (mark > max) {
-                        max = mark;
-                    }
-                }
-
-                return max;
+        try (InputStream in = catFile(sha);
+                OutputStream out = new FileOutputStream(toFile)) {
+            for (int i = in.read(buff); i != -1; i = in.read(buff)) {
+                out.write(buff, 0, i);
             }
         }
 
-        return 0L;
+        return toFile;
     }
 
     public Exec checkout(final String... args) {
         return exec("checkout", args);
     }
 
-    public String getCurrentSha(final java.io.File dir, final String branch)
-            throws InterruptedException, IOException {
-        final Exec exec = new Exec(dir, "git", "log", "-1",
-                "--pretty=format:%H", branch);
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream(64);
-        exec.setOutStream(baos);
-        exec.exec().waitFor();
-        return new String(baos.toByteArray());
-    }
-
-    private File getMarksFile() {
+    public File getMarksFile() {
         final File repoDir = getRepoDir();
         File gitDir = new File(getRepoDir(), ".git");
 

@@ -11,7 +11,6 @@ import java.util.Map;
 import com.googlecode.gitst.fastimport.Commit;
 import com.googlecode.gitst.fastimport.CommitId;
 import com.googlecode.gitst.fastimport.FastImport;
-import com.starbase.starteam.View;
 import com.starbase.util.OLEDate;
 
 /**
@@ -73,40 +72,48 @@ public class Pull {
             ExecutionException {
         long time = System.currentTimeMillis();
         final Repo repo = getRepo();
-        final View view = repo.connect();
+        final Marks marks = repo.getMarks();
         final RepoProperties props = repo.getRepoProperties();
         final FastImport fastImport = new FastImport(repo);
         final OLEDate endDate = repo.getServer().getCurrentTime();
         final String lastSync = props.getMetaProperty(META_PROP_LAST_SYNC_DATE);
         final Map<CommitId, Commit> commits;
+        boolean ok = false;
 
-        // Initial import
-        if (lastSync == null) {
-            commits = fastImport.loadChanges(view, endDate, true);
-        } else {
-            final OLEDate startDate = new OLEDate(Double.parseDouble(lastSync));
-            commits = fastImport.loadChanges(view, startDate, endDate, true);
-        }
+        try {
+            // Initial import
+            if (lastSync == null) {
+                commits = fastImport.loadChanges(endDate, true);
+            } else {
+                final OLEDate startDate = new OLEDate(
+                        Double.parseDouble(lastSync));
+                commits = fastImport.loadChanges(startDate, endDate, true);
+            }
 
-        if (!commits.isEmpty()) {
-            _log.echo();
-            fastImport.submit(commits.values());
-        } else {
-            _log.echo("No changes found");
-        }
+            if (!commits.isEmpty()) {
+                _log.echo();
+                fastImport.submit(commits.values());
 
-        props.setMetaProperty(META_PROP_LAST_SYNC_DATE,
-                String.valueOf(endDate.getDoubleValue()));
-        props.saveMeta();
+            } else {
+                _log.echo("No changes found");
+            }
 
-        time = (System.currentTimeMillis() - time) / 1000;
-        _log.echo("Total time: "
-                + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
-                        + (time % 60) + "s"));
+            props.setMetaProperty(META_PROP_LAST_SYNC_DATE,
+                    String.valueOf(endDate.getDoubleValue()));
+            props.saveMeta();
+            ok = true;
+            time = (System.currentTimeMillis() - time) / 1000;
+            _log.echo("Total time: "
+                    + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
+                            + (time % 60) + "s"));
 
-        if (!repo.isBare()) {
-            _log.echo("Checking out " + repo.getBranchName());
-            repo.getGit().checkout(repo.getBranchName()).exec().waitFor();
+            if (!commits.isEmpty() && !repo.isBare()) {
+                repo.getGit().exec("reset", "--merge").exec().waitFor();
+            }
+        } finally {
+            if (!ok && !marks.isEmpty()) {
+                marks.store(repo.getGit().getMarksFile());
+            }
         }
     }
 

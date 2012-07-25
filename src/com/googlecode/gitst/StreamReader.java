@@ -72,4 +72,42 @@ public class StreamReader {
 
         return _list.toArray(new String[_list.size()]);
     }
+
+    public String[] split(final String line, final boolean handleQuotes) {
+        if (!handleQuotes) {
+            return split(line);
+        } else {
+            int i = 0;
+            int prev = 0;
+            boolean quoted = false;
+            _list.clear();
+
+            for (; i < line.length(); i++) {
+                final char c = line.charAt(i);
+
+                switch (c) {
+                case ' ':
+                    if (!quoted) {
+                        _list.add(line.substring(prev, i));
+                        prev = i + 1;
+                    }
+
+                    break;
+                case '"':
+                    if (quoted) {
+                        quoted = false;
+                    } else {
+                        quoted = true;
+                    }
+
+                    break;
+                }
+            }
+            if (prev != line.length()) {
+                _list.add(line.substring(prev, i));
+            }
+
+            return _list.toArray(new String[_list.size()]);
+        }
+    }
 }

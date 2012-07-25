@@ -41,6 +41,10 @@ public class Logger {
         echo("");
     }
 
+    public void warn(final Object msg) {
+        echo("Warning! " + msg);
+    }
+
     public synchronized void echo(final Object msg) {
         if (_pbar != null) {
             _pbar.clear();

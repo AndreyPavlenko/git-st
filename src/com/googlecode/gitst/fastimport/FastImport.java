@@ -15,6 +15,7 @@ import com.googlecode.gitst.ExecutionException;
 import com.googlecode.gitst.Git;
 import com.googlecode.gitst.Logger;
 import com.googlecode.gitst.Logger.ProgressBar;
+import com.googlecode.gitst.Marks;
 import com.googlecode.gitst.Repo;
 import com.starbase.starteam.CheckoutManager;
 import com.starbase.starteam.CheckoutOptions;
@@ -88,7 +89,8 @@ public class FastImport {
         _log.echo("Executing git fast-import");
         final Repo repo = getRepo();
         final Git git = repo.getGit();
-        long mark = git.getLatestMark();
+        final Marks marks = repo.getMarks();
+        int mark = marks.isEmpty() ? 0 : marks.lastKey();
         final Exec exec = git.fastImport().exec();
         final Process proc = exec.getProcess();
 
@@ -116,7 +118,7 @@ public class FastImport {
         }
     }
 
-    private void commit(final Commit cmt, final long mark, final String branch,
+    private void commit(final Commit cmt, final int mark, final String branch,
             final PrintStream s) throws IOException, InterruptedException {
         final Repo repo = getRepo();
         final CommitId id = cmt.getId();
