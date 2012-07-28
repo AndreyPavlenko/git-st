@@ -68,8 +68,6 @@ public class Init {
 
                 final RepoProperties props = new RepoProperties(git, "origin");
                 props.setLocalProperty(PROP_URL, url);
-                props.setLocalProperty(PROP_FETCH, "+refs/heads/" + branch
-                        + ":refs/remotes/origin/master");
                 props.setLocalProperty(PROP_THREADS,
                         String.valueOf(Integer.parseInt(t)));
                 props.setLocalProperty(PROP_USER_PATTERN, up);
@@ -79,8 +77,7 @@ public class Init {
                     props.setLocalProperty(PROP_CA, ca);
                 }
 
-                props.saveLocalProperties();
-                git.exec("config", "core.ignorecase", "false").exec().waitFor();
+                setDefaults(props, git, branch);
             } catch (final IllegalArgumentException ex) {
                 System.err.println(ex.getMessage());
                 printHelp(System.err);
@@ -93,6 +90,26 @@ public class Init {
                 System.exit(ex.getExitCode());
             }
         }
+    }
+
+    static void setDefaults(final RepoProperties props, final Git git,
+            final String branch) throws IOException, InterruptedException,
+            ExecutionException {
+        props.setLocalProperty(PROP_FETCH, "+refs/heads/" + branch
+                + ":refs/remotes/origin/master");
+
+        if (props.getProperty(PROP_THREADS, null) == null) {
+            props.setLocalProperty(PROP_THREADS, PROP_DEFAULT_THREADS);
+        }
+        if (props.getProperty(PROP_USER_PATTERN, null) == null) {
+            props.setLocalProperty(PROP_USER_PATTERN, PROP_DEFAULT_USER_PATTERN);
+        }
+        if (props.getProperty(PROP_IGNORE, null) == null) {
+            props.setLocalProperty(PROP_IGNORE, PROP_DEFAULT_IGNORE);
+        }
+
+        props.saveLocalProperties();
+        git.exec("config", "core.ignorecase", "false").exec().waitFor();
     }
 
     private static void printHelp(final PrintStream ps) {

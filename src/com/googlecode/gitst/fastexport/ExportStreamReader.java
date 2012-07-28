@@ -81,7 +81,8 @@ public class ExportStreamReader {
                                 commit.setMark(mark);
                             }
 
-                            if (!repo.isGitStComment(commit.getComment())) {
+                            if (!repo.isGitStComment(commit.getComment())
+                                    && !commit.getChanges().isEmpty()) {
                                 _commits.put(mark, commit);
                             } else if (log.isDebugEnabled()) {
                                 log.debug("Ignoring: " + commit);
@@ -108,7 +109,8 @@ public class ExportStreamReader {
                 commit.setMark(mark);
             }
 
-            if (!repo.isGitStComment(commit.getComment())) {
+            if (!repo.isGitStComment(commit.getComment())
+                    && !commit.getChanges().isEmpty()) {
                 _commits.put(mark, commit);
             } else if (log.isDebugEnabled()) {
                 log.debug("Ignoring: " + commit);

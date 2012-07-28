@@ -30,7 +30,7 @@ public class RepoProperties {
     public static final String PROP_DEFAULT_THREADS = "3";
     public static final String PROP_DEFAULT_IGNORE = "\\.gitignore;.*/\\.gitignore";
     public static final String PROP_DEFAULT_USER_PATTERN = "{0} <{4}.{2}@mycompany.com>";
-    public static final String META_PROP_LAST_SYNC_DATE = "LastSyncDate";
+    public static final String META_PROP_LAST_PULL_DATE = "LastPullDate";
     public static final String META_PROP_ITEM_FILTER = "ItemFilter";
 
     private final Git _git;
@@ -99,7 +99,7 @@ public class RepoProperties {
             i2 = branch.indexOf('*');
 
             if (i2 != -1) {
-                branch = branch.substring(0, i2) + "/master";
+                branch = branch.substring(0, i2) + "master";
             }
 
             return branch;
@@ -121,7 +121,7 @@ public class RepoProperties {
             i = branch.indexOf('*');
 
             if (i != -1) {
-                branch = branch.substring(0, i) + "/master";
+                branch = branch.substring(0, i) + "master";
             }
 
             return branch;

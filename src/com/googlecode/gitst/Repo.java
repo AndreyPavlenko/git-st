@@ -98,15 +98,6 @@ public class Repo implements AutoCloseable {
             String password = url.getPassword();
             Server server;
 
-            if (userName == null) {
-                userName = props.getOrRequestProperty(PROP_USER, "Username: ",
-                        false);
-            }
-            if (password == null) {
-                password = props.getOrRequestProperty(PROP_PASSWORD,
-                        "Password: ", true);
-            }
-
             if (ca != null) {
                 if (Boolean.parseBoolean(ca)) {
                     info.setAutoLocateCacheAgent(true);
@@ -139,9 +130,26 @@ public class Repo implements AutoCloseable {
             server = new Server(info);
             server.connect();
 
-            if (server.logOn(userName, password) == 0) {
-                throw new ConfigurationException("Failed to login to " + host
-                        + ':' + port + " as user " + userName);
+            if ((userName != null) && (password != null)) {
+                if (server.logOn(userName, password) == 0) {
+                    throw new ConfigurationException("Failed to login to "
+                            + host + ':' + port + " as user " + userName);
+                }
+                cacheLogOnCredentials(server, userName, password);
+            } else if (autoLogOn(server) == 0) {
+                if (userName == null) {
+                    userName = props.getOrRequestProperty(PROP_USER,
+                            "Username: ", false);
+                }
+                if (password == null) {
+                    password = props.getOrRequestProperty(PROP_PASSWORD,
+                            "Password: ", true);
+                }
+                if (server.logOn(userName, password) == 0) {
+                    throw new ConfigurationException("Failed to login to "
+                            + host + ':' + port + " as user " + userName);
+                }
+                cacheLogOnCredentials(server, userName, password);
             }
 
             _view = findView(findProject(server, project), view);
@@ -560,6 +568,22 @@ public class Repo implements AutoCloseable {
         }
 
         return "main";
+    }
+
+    private static int autoLogOn(final Server server) {
+        try {
+            return server.autoLogOn();
+        } catch (final Throwable ex) {
+            return 0;
+        }
+    }
+
+    private static void cacheLogOnCredentials(final Server server,
+            final String userName, final String password) {
+        try {
+            server.cacheLogOnCredentials(userName, password);
+        } catch (final Throwable ex) {
+        }
     }
 
     private StarTeamURL getUrl() {

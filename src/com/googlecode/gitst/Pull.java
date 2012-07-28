@@ -1,7 +1,7 @@
 package com.googlecode.gitst;
 
 import static com.googlecode.gitst.RepoProperties.META_PROP_ITEM_FILTER;
-import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_SYNC_DATE;
+import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_PULL_DATE;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 
@@ -102,14 +102,14 @@ public class Pull {
         final RepoProperties props = repo.getRepoProperties();
         final FastImport fastImport = new FastImport(repo);
         final OLEDate endDate = repo.getServer().getCurrentTime();
-        final String lastSync = props.getMetaProperty(META_PROP_LAST_SYNC_DATE);
+        final String lastPull = props.getMetaProperty(META_PROP_LAST_PULL_DATE);
         final Map<CommitId, Commit> commits;
 
         // Initial import
-        if (lastSync == null) {
+        if (lastPull == null) {
             commits = fastImport.loadChanges(endDate);
         } else {
-            final OLEDate startDate = new OLEDate(Double.parseDouble(lastSync));
+            final OLEDate startDate = new OLEDate(Double.parseDouble(lastPull));
             commits = fastImport.loadChanges(startDate, endDate);
         }
 
@@ -137,7 +137,7 @@ public class Pull {
         }
 
         if (!dryRun) {
-            props.setMetaProperty(META_PROP_LAST_SYNC_DATE,
+            props.setMetaProperty(META_PROP_LAST_PULL_DATE,
                     String.valueOf(endDate.getDoubleValue()));
             props.setMetaProperty(META_PROP_ITEM_FILTER, null);
             props.saveMeta();

@@ -12,6 +12,7 @@ import java.util.TimeZone;
 import com.googlecode.gitst.Logger;
 import com.googlecode.gitst.RemoteFile;
 import com.googlecode.gitst.Repo;
+import com.googlecode.gitst.Logger.ProgressBar;
 import com.starbase.starteam.CheckinEvent;
 import com.starbase.starteam.CheckinListener;
 import com.starbase.starteam.CheckinManager;
@@ -120,13 +121,15 @@ public class Commit implements FastExportCommand {
     private void commit(final CheckinManager mgr, final Repo repo,
             final Map<RemoteFile, FileModify> changes) throws IOException {
         final ItemList items = new ItemList();
-        final Listener l = new Listener(repo, changes);
 
         for (final FileModify c : changes.values()) {
             final File f = c.getFile(repo);
             items.addItem(f);
         }
 
+        final ProgressBar pb = repo.getLogger().createProgressBar(
+                "Checking in", items.size());
+        final Listener l = new Listener(repo, changes, pb);
         mgr.addCheckinListener(l);
         mgr.checkin(items);
     }
@@ -153,11 +156,13 @@ public class Commit implements FastExportCommand {
     private final class Listener implements CheckinListener {
         private final Repo _repo;
         private final Map<RemoteFile, FileModify> _changes;
+        private final ProgressBar _pb;
 
         public Listener(final Repo repo,
-                final Map<RemoteFile, FileModify> changes) {
+                final Map<RemoteFile, FileModify> changes, final ProgressBar pb) {
             _repo = repo;
             _changes = changes;
+            _pb = pb;
         }
 
         @Override
@@ -174,6 +179,7 @@ public class Commit implements FastExportCommand {
         @Override
         public void onNotifyProgress(final CheckinEvent e) {
             if (e.isFinished()) {
+                _pb.done(1);
                 e.getCurrentWorkingFile().delete();
             }
         }

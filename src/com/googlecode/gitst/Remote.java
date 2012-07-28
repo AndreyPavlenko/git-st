@@ -149,9 +149,15 @@ public class Remote {
             ExecutionException {
         final Git git = new Git(new File("."));
         final RepoProperties props = new RepoProperties(git, remoteName);
+        final boolean isFirst = props
+                .getMetaProperty(RepoProperties.META_PROP_LAST_PULL_DATE) == null;
         final Repo repo = new Repo(props, getLogger());
         final Pull pull = new Pull(repo);
         pull.pull(out, dryRun);
+
+        if (isFirst) {
+            Init.setDefaults(props, git, "master");
+        }
     }
 
     private void push(final String remoteName, final boolean dryRun)
