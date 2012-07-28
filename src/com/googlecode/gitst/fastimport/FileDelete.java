@@ -14,7 +14,12 @@ public class FileDelete extends FileChange {
     private String _path;
 
     public FileDelete(final Item item) {
+        this(item, null);
+    }
+
+    public FileDelete(final Item item, final String path) {
         _item = item;
+        _path = path;
     }
 
     public Item getItem() {
@@ -47,6 +52,6 @@ public class FileDelete extends FileChange {
 
     @Override
     public String toString() {
-        return "D " + getPath();
+        return "D " + getPath() + ':' + getItem().getDotNotation();
     }
 }

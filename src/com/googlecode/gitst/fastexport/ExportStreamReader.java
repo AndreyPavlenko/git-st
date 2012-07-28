@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.googlecode.gitst.Logger;
 import com.googlecode.gitst.Repo;
 import com.googlecode.gitst.StreamReader;
 
@@ -54,6 +55,8 @@ public class ExportStreamReader {
 
     public Map<Integer, Commit> readCommits() throws IOException,
             UnsupportedCommandException {
+        final Repo repo = getRepo();
+        final Logger log = repo.getLogger();
         final StreamReader r = getStreamReader();
         int unmarked = Integer.MIN_VALUE;
         Commit commit = null;
@@ -78,7 +81,11 @@ public class ExportStreamReader {
                                 commit.setMark(mark);
                             }
 
-                            _commits.put(mark, commit);
+                            if (!repo.isGitStComment(commit.getComment())) {
+                                _commits.put(mark, commit);
+                            } else if (log.isDebugEnabled()) {
+                                log.debug("Ignoring: " + commit);
+                            }
                         }
 
                         commit = (Commit) c;
@@ -101,7 +108,11 @@ public class ExportStreamReader {
                 commit.setMark(mark);
             }
 
-            _commits.put(mark, commit);
+            if (!repo.isGitStComment(commit.getComment())) {
+                _commits.put(mark, commit);
+            } else if (log.isDebugEnabled()) {
+                log.debug("Ignoring: " + commit);
+            }
         }
 
         return _commits;
@@ -252,7 +263,8 @@ public class ExportStreamReader {
         public FastExportCommand read(final StreamReader r, final String line,
                 final Commit commit, final FastExportCommand prev)
                 throws UnsupportedCommandException {
-            getRepo().getLogger().warn("Merge is not yet supported: " + line);
+            getRepo().getLogger().warn(
+                    "Warning! Merge is not yet supported: " + line);
             return null;
         }
     }

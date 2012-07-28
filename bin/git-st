@@ -1,9 +1,8 @@
 #!/bin/bash
 
-DIR=$(dirname "${0}")
+DIR=${DIR:-$(dirname "${0}")}
 JAR_NAME="@JAR_NAME@"
 PKG_NAME="com.googlecode.gitst"
-CFG_DIR="/etc/$(basename "${0}")"
 
 if [[ ${OS} = *indows* ]]
 then
@@ -39,15 +38,9 @@ else
     exit 1
 fi
 
-if [ ! -d "${CFG_DIR}" ]
-then
-    CFG_DIR="${DIR}/../config"
-fi
-
 if [ "${OSTYPE}" = "cygwin" ]
 then
     JAR_PATH=$(cygpath -m "${JAR_PATH}")
-    CFG_DIR=$(cygpath -m "${CFG_DIR}")
     
     ORIG_IFS=${IFS}
     IFS=${PS}
@@ -69,27 +62,29 @@ then
     IFS=${ORIG_IFS}
 fi
 
-case ${1} in
-    init)
-        CLASS_NAME="Init"
-        ;;
-    pull)
-        CLASS_NAME="Pull"
-        ;;
-    push)
-        CLASS_NAME="Push"
-        ;;
-    *)
-        echo "Usage: git st <init|pull|push>" >&2
-        exit 1
-        ;;
-esac
-
-shift
+if [ -z "${CLASS_NAME}" ]
+then
+    case ${1} in
+        init)
+            CLASS_NAME="Init"
+            ;;
+        pull)
+            CLASS_NAME="Pull"
+            ;;
+        push)
+            CLASS_NAME="Push"
+            ;;
+        *)
+            echo "Usage: git st <init|pull|push>" >&2
+            exit 1
+            ;;
+    esac
+    shift
+fi
 
 if [ -z "${LIBRARY_PATH}" ]
 then
-    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $@
+    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "${PKG_NAME}.${CLASS_NAME}" $@
 else
-    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" -c "${CFG_DIR}" $@
+    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" $@
 fi

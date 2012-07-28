@@ -1,5 +1,0 @@
-# Global user mappings. This is a property file containing mappings of user id
-# to git-compatible user name.
-# Example:
-#
-# 333=User Name <user.name@mycompany.com>

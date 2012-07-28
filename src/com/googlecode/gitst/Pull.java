@@ -1,13 +1,17 @@
 package com.googlecode.gitst;
 
+import static com.googlecode.gitst.RepoProperties.META_PROP_ITEM_FILTER;
 import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_SYNC_DATE;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Map;
 
+import com.googlecode.gitst.Logger.Level;
 import com.googlecode.gitst.fastimport.Commit;
 import com.googlecode.gitst.fastimport.CommitId;
 import com.googlecode.gitst.fastimport.FastImport;
@@ -26,41 +30,54 @@ public class Pull {
     }
 
     public static void main(final String[] args) {
-        if (args.length == 0) {
-            printHelp(System.out);
-        } else {
-            try {
-                final Args a = new Args(args);
-                final String dir = a.get("-d", ".");
-                final String confDir = a.get("-c", null);
-                final String user = a.get("-u", null);
-                final String password = a.get("-p", null);
-                final RepoProperties props = new RepoProperties(
-                        new java.io.File(dir), confDir == null ? null
-                                : new java.io.File(confDir));
+        final Args a = new Args(args);
+        final String user = a.get("-u", null);
+        final String password = a.get("-p", null);
+        final File dir = new File(a.get("-d", "."));
+        final boolean dryRun = a.hasOption("--dry-run");
+        final Level level = a.hasOption("-v") ? Level.DEBUG : a.hasOption("-q")
+                ? Level.ERROR : Level.INFO;
+        final Logger log = Logger.createConsoleLogger(level);
 
-                if (user != null) {
-                    props.setSessionProperty(PROP_USER, user);
-                }
-                if (password != null) {
-                    props.setSessionProperty(PROP_PASSWORD, password);
-                }
+        try {
+            final Git git = new Git(dir);
+            final RepoProperties props = new RepoProperties(git, "origin");
 
-                try (final Repo repo = new Repo(props,
-                        Logger.createConsoleLogger())) {
-                    new Pull(repo).pull();
-                }
-            } catch (final IllegalArgumentException ex) {
-                System.err.println(ex.getMessage());
-                printHelp(System.err);
-                System.exit(1);
-            } catch (final IOException | ConfigurationException
-                    | InterruptedException ex) {
-                System.err.println(ex.getMessage());
-                System.exit(1);
-            } catch (final ExecutionException ex) {
-                System.exit(ex.getExitCode());
+            if (user != null) {
+                props.setSessionProperty(PROP_USER, user);
             }
+            if (password != null) {
+                props.setSessionProperty(PROP_PASSWORD, password);
+            }
+
+            try (final Repo repo = new Repo(props, log)) {
+                new Pull(repo).pull(dryRun);
+            }
+        } catch (final IllegalArgumentException ex) {
+            if (!log.isDebugEnabled()) {
+                System.err.println(ex.getMessage());
+            } else {
+                log.error(ex.getMessage(), ex);
+            }
+
+            printHelp(System.err);
+            System.exit(1);
+        } catch (final ExecutionException ex) {
+            if (!log.isDebugEnabled()) {
+                System.err.println(ex.getMessage());
+            } else {
+                log.error(ex.getMessage(), ex);
+            }
+
+            System.exit(ex.getExitCode());
+        } catch (final Throwable ex) {
+            if (!log.isDebugEnabled()) {
+                System.err.println(ex.getMessage());
+            } else {
+                log.error(ex.getMessage(), ex);
+            }
+
+            System.exit(1);
         }
     }
 
@@ -70,54 +87,65 @@ public class Pull {
 
     public void pull() throws IOException, InterruptedException,
             ExecutionException {
+        pull(null, false);
+    }
+
+    public void pull(final boolean dryRun) throws IOException,
+            InterruptedException, ExecutionException {
+        pull(null, dryRun);
+    }
+
+    public void pull(final OutputStream out, final boolean dryRun)
+            throws IOException, InterruptedException, ExecutionException {
         long time = System.currentTimeMillis();
         final Repo repo = getRepo();
-        final Marks marks = repo.getMarks();
         final RepoProperties props = repo.getRepoProperties();
         final FastImport fastImport = new FastImport(repo);
         final OLEDate endDate = repo.getServer().getCurrentTime();
         final String lastSync = props.getMetaProperty(META_PROP_LAST_SYNC_DATE);
         final Map<CommitId, Commit> commits;
-        boolean ok = false;
 
-        try {
-            // Initial import
-            if (lastSync == null) {
-                commits = fastImport.loadChanges(endDate, true);
-            } else {
-                final OLEDate startDate = new OLEDate(
-                        Double.parseDouble(lastSync));
-                commits = fastImport.loadChanges(startDate, endDate, true);
-            }
+        // Initial import
+        if (lastSync == null) {
+            commits = fastImport.loadChanges(endDate);
+        } else {
+            final OLEDate startDate = new OLEDate(Double.parseDouble(lastSync));
+            commits = fastImport.loadChanges(startDate, endDate);
+        }
 
-            if (!commits.isEmpty()) {
-                _log.echo();
+        if (!commits.isEmpty()) {
+            _log.info("");
+            if (out == null) {
                 fastImport.submit(commits.values());
-
             } else {
-                _log.echo("No changes found");
+                fastImport.submit(commits.values(), out);
             }
+        } else {
+            _log.info("No changes found");
+        }
 
-            props.setMetaProperty(META_PROP_LAST_SYNC_DATE,
-                    String.valueOf(endDate.getDoubleValue()));
-            props.saveMeta();
-            ok = true;
+        if (_log.isInfoEnabled()) {
             time = (System.currentTimeMillis() - time) / 1000;
-            _log.echo("Total time: "
+            _log.info("Total time: "
                     + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
                             + (time % 60) + "s"));
+        }
 
-            if (!commits.isEmpty() && !repo.isBare()) {
-                repo.getGit().exec("reset", "--merge").exec().waitFor();
-            }
-        } finally {
-            if (!ok && !marks.isEmpty()) {
-                marks.store(repo.getGit().getMarksFile());
-            }
+        if (!dryRun && (out == null) && !commits.isEmpty() && !repo.isBare()) {
+            _log.info("Executing git reset --merge");
+            repo.getGit().exec("reset", "--merge").exec().waitFor();
+        }
+
+        if (!dryRun) {
+            props.setMetaProperty(META_PROP_LAST_SYNC_DATE,
+                    String.valueOf(endDate.getDoubleValue()));
+            props.setMetaProperty(META_PROP_ITEM_FILTER, null);
+            props.saveMeta();
         }
     }
 
     private static void printHelp(final PrintStream ps) {
-        ps.println("Usage: git st pull [-u <user>] [-p password] [-d <directory>] [-c <confdir>]");
+        ps.println("Usage: git st pull [-u <user>] [-p password] [-d <directory>] "
+                + "[--dry-run] [-v] [-q]");
     }
 }

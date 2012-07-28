@@ -3,33 +3,47 @@ package com.googlecode.gitst;
 import java.io.Console;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Andrey Pavlenko
  */
 public class Logger {
     private final PrintWriter _logWriter;
-    private final boolean _progressBarSupported;
-    private PBar _pbar;
+    private final List<PBar> _pbar = new ArrayList<PBar>(3);
+    private volatile Level _level;
+    private volatile boolean _progressBarSupported;
 
     public Logger(final OutputStream logWriter,
             final boolean progressBarSupported) {
-        this(new PrintWriter(logWriter), progressBarSupported);
+        this(logWriter, progressBarSupported, Level.INFO);
+    }
+
+    public Logger(final OutputStream logWriter,
+            final boolean progressBarSupported, final Level level) {
+        this(new PrintWriter(logWriter), progressBarSupported, level);
     }
 
     public Logger(final PrintWriter logWriter,
             final boolean progressBarSupported) {
-        _logWriter = logWriter;
-        _progressBarSupported = progressBarSupported;
+        this(logWriter, progressBarSupported, Level.INFO);
     }
 
-    public static Logger createConsoleLogger() {
+    public Logger(final PrintWriter logWriter,
+            final boolean progressBarSupported, final Level level) {
+        _logWriter = logWriter;
+        _progressBarSupported = progressBarSupported;
+        _level = level;
+    }
+
+    public static Logger createConsoleLogger(final Level level) {
         final Console c = System.console();
 
         if (c != null) {
-            return new Logger(c.writer(), true);
+            return new Logger(c.writer(), true, level);
         } else {
-            return new Logger(System.out, false);
+            return new Logger(System.out, false, level);
         }
     }
 
@@ -37,45 +51,57 @@ public class Logger {
         return _progressBarSupported;
     }
 
-    public synchronized void echo() {
-        echo("");
+    public void setProgressBarSupported(final boolean progressBarSupported) {
+        _progressBarSupported = progressBarSupported;
+    }
+
+    public Level getLevel() {
+        return _level;
+    }
+
+    public void setLevel(final Level level) {
+        _level = level;
+    }
+
+    public void debug(final Object msg) {
+        if (isDebugEnabled()) {
+            log(msg);
+        }
+    }
+
+    public void info(final Object msg) {
+        if (isInfoEnabled()) {
+            log(msg);
+        }
     }
 
     public void warn(final Object msg) {
-        echo("Warning! " + msg);
-    }
-
-    public synchronized void echo(final Object msg) {
-        if (_pbar != null) {
-            _pbar.clear();
-            _logWriter.println(msg);
-            _pbar.print();
-        } else {
-            _logWriter.println(msg);
+        if (isWarnEnabled()) {
+            log(msg);
         }
-
-        _logWriter.flush();
     }
 
     public synchronized void error(final Object msg, final Throwable ex) {
-        if (_pbar != null) {
-            _pbar.clear();
-            _logWriter.println(msg);
+        if (isErrorEnabled()) {
+            if (!_pbar.isEmpty()) {
+                clearPogress();
+                _logWriter.println(msg);
 
-            if (ex != null) {
-                ex.printStackTrace(_logWriter);
+                if (ex != null) {
+                    ex.printStackTrace(_logWriter);
+                }
+
+                printProgress();
+            } else {
+                _logWriter.println(msg);
+
+                if (ex != null) {
+                    ex.printStackTrace(_logWriter);
+                }
             }
 
-            _pbar.print();
-        } else {
-            _logWriter.println(msg);
-
-            if (ex != null) {
-                ex.printStackTrace(_logWriter);
-            }
+            _logWriter.flush();
         }
-
-        _logWriter.flush();
     }
 
     public synchronized ProgressBar createProgressBar(final String message,
@@ -83,18 +109,76 @@ public class Logger {
         if (!isProgressBarSupported()) {
             return new DummyProgressBar();
         }
-        if (_pbar != null) {
-            throw new IllegalStateException("There is an active ProgressBar");
+
+        final PBar pbar = new PBar(message, total);
+        clearPogress();
+        _pbar.add(pbar);
+        printProgress();
+        return pbar;
+    }
+
+    public boolean isDebugEnabled() {
+        return getLevel() == Level.DEBUG;
+    }
+
+    public boolean isInfoEnabled() {
+        return getLevel().ordinal() <= Level.INFO.ordinal();
+    }
+
+    public boolean isWarnEnabled() {
+        return getLevel().ordinal() <= Level.WARNING.ordinal();
+    }
+
+    public boolean isErrorEnabled() {
+        return getLevel().ordinal() <= Level.ERROR.ordinal();
+    }
+
+    private synchronized void log(final Object msg) {
+        if (!_pbar.isEmpty()) {
+            clearPogress();
+            _logWriter.println(msg);
+            printProgress();
+        } else {
+            _logWriter.println(msg);
         }
 
-        _pbar = new PBar(message, total);
-        _pbar.print();
-        return _pbar;
+        _logWriter.flush();
+    }
+
+    // @GuardedBy("this")
+    private void clearPogress() {
+        _logWriter.print('\r');
+        for (final PBar b : _pbar) {
+            for (int i = 0; i < b._lastMessageLen; i++) {
+                _logWriter.print(' ');
+            }
+            _logWriter.print(' ');
+        }
+        _logWriter.print('\r');
+    }
+
+    // @GuardedBy("this")
+    private void printProgress() {
+        for (final PBar b : _pbar) {
+            b.printMessage();
+            _logWriter.print(' ');
+        }
+        _logWriter.flush();
+    }
+
+    public static enum Level {
+        DEBUG,
+        INFO,
+        WARNING,
+        ERROR,
+        OFF;
     }
 
     public static interface ProgressBar {
 
         public void done(int count);
+
+        public void complete();
 
         public void close();
     }
@@ -103,6 +187,10 @@ public class Logger {
 
         @Override
         public void done(final int count) {
+        }
+
+        @Override
+        public void complete() {
         }
 
         @Override
@@ -130,7 +218,8 @@ public class Logger {
                             "ProgressBar is already closed");
                 }
                 _done += count;
-                print();
+                clearPogress();
+                printProgress();
 
                 if (_done >= _total) {
                     close();
@@ -139,46 +228,34 @@ public class Logger {
         }
 
         @Override
+        public void complete() {
+            synchronized (Logger.this) {
+                done(_total - _done);
+            }
+        }
+
+        @Override
         public void close() {
             synchronized (Logger.this) {
                 if (!_closed) {
                     _closed = true;
-                    _pbar = null;
-                    _logWriter.println();
-                    _logWriter.flush();
+                    clearPogress();
+                    _pbar.remove(this);
+                    printProgress();
                 }
             }
         }
 
-        // @GuardedBy("this")
-        void print() {
-            final String msg = _message + ((_done * 100) / _total) + '%';
+        // @GuardedBy("Logger.this")
+        void printMessage() {
+            final String msg = createMessage();
             _lastMessageLen = msg.length();
-            _logWriter.print('\r');
             _logWriter.print(msg);
-            _logWriter.flush();
         }
 
-        // @GuardedBy("this")
-        void clear() {
-            _logWriter.print('\r');
-            for (int i = 0; i < _lastMessageLen; i++) {
-                _logWriter.print(' ');
-            }
-            _logWriter.print('\r');
-        }
-    }
-
-    public static void main(final String[] args) throws InterruptedException {
-        final Logger l = new Logger(System.out, true);
-        l.echo("start");
-        final ProgressBar b = l
-                .createProgressBar("Importing to git...    ", 10);
-
-        for (int i = 0; i < 10; i++) {
-            Thread.sleep(1000);
-            l.echo(i);
-            b.done(1);
+        private String createMessage() {
+            return '[' + _message + ": " + ((_done * 100) / _total) + "% ("
+                    + _done + '/' + _total + ")]";
         }
     }
 }

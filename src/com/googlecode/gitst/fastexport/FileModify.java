@@ -32,7 +32,7 @@ public class FileModify extends FileChange {
 
     public synchronized java.io.File getLocalFile(final Repo repo)
             throws IOException {
-        if (_localFile == null) {
+        if ((_localFile == null) || !_localFile.exists()) {
             _localFile = repo.getGit().catFile(getDataref(),
                     repo.createTempFile(getPath()));;
         }

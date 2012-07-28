@@ -1,10 +1,14 @@
 package com.googlecode.gitst;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -14,19 +18,61 @@ import java.util.List;
  */
 public class Git {
     private static final String FILE_MARKS = ".marks";
+    private final File _gitDir;
     private final File _repoDir;
-    private final String _executable = "git";
+    private final String _executable;
 
     public Git(final File repoDir) {
+        this(repoDir, null);
+    }
+
+    public Git(final File repoDir, final File gitDir) {
+        this(repoDir, gitDir, null);
+    }
+
+    public Git(final File repoDir, File gitDir, final String executable) {
+        if (!repoDir.isDirectory()) {
+            throw new ConfigurationException(
+                    "Repository directory does not exist: "
+                            + repoDir.getAbsolutePath());
+        }
+        if (gitDir == null) {
+            gitDir = findGitDir(repoDir);
+        }
+        if (!gitDir.isDirectory()) {
+            throw new ConfigurationException("Git directory does not exist: "
+                    + gitDir.getAbsolutePath());
+        }
+
+        _gitDir = gitDir;
         _repoDir = repoDir;
+        _executable = executable == null ? "git" : executable;
     }
 
     public File getRepoDir() {
         return _repoDir;
     }
 
+    public File getGitDir() {
+        return _gitDir;
+    }
+
     public String getExecutable() {
         return _executable;
+    }
+
+    public String getOption(final String name) throws IOException {
+        final Exec exec = exec("config", name);
+        exec.setOutStream(null);
+        final Process proc = exec.exec().getProcess();
+
+        try {
+            final BufferedReader r = new BufferedReader(new InputStreamReader(
+                    proc.getInputStream()));
+            return r.readLine();
+        } finally {
+            proc.destroy();
+        }
     }
 
     public Exec exec(final String arg, final String... args) {
@@ -51,13 +97,10 @@ public class Git {
         return new Exec(getRepoDir(), command);
     }
 
-    public Exec fastImport(final String... args) {
-        final List<String> l = new ArrayList<>(args == null ? 3
-                : 3 + args.length);
-        final String marks = getMarksFile().getAbsolutePath();
+    public Exec fastImport(final String branch, final String... args) {
+        final List<String> l = new ArrayList<>(args == null ? 1
+                : 1 + args.length);
         l.add("fast-import");
-        l.add("--export-marks=" + marks);
-        l.add("--import-marks-if-exists=" + marks);
 
         if (args != null) {
             for (final String a : args) {
@@ -71,7 +114,7 @@ public class Git {
     public Exec fastExport(final String branch, final String... args) {
         final List<String> l = new ArrayList<>(args == null ? 6
                 : 6 + args.length);
-        final File f = getMarksFile();
+        final File f = getMarksFile(branch);
         final String marks = f.getAbsolutePath();
         Exec exec;
 
@@ -90,21 +133,10 @@ public class Git {
         }
 
         l.add(branch);
+        f.getParentFile().mkdirs();
         exec = exec(l);
         exec.setOutStream(null);
         return exec;
-    }
-
-    public boolean fileExists(final String branch, final String path)
-            throws IOException {
-        try {
-            final Exec exec = exec("cat-file", "-t", branch + ':' + path);
-            exec.setOutStream(null);
-            exec.setErrStream(null);
-            return exec.exec().waitFor() == 0;
-        } catch (final InterruptedException ex) {
-            return false;
-        }
     }
 
     public InputStream catFile(final String sha) throws IOException {
@@ -130,7 +162,41 @@ public class Git {
         return exec("checkout", args);
     }
 
-    public File getMarksFile() {
+    public String showRef(final String ref) throws InterruptedException,
+            IOException, ExecutionException {
+        final Exec exec = new Exec(getRepoDir(), "git", "show-ref", "-s", ref);
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream(64);
+        exec.setOutStream(baos);
+        final int exit = exec.exec().waitFor();
+        return (exit == 0) ? new String(baos.toByteArray()).trim() : null;
+    }
+
+    public void updateRef(final String ref, final String sha)
+            throws InterruptedException, IOException, ExecutionException {
+        final Exec exec = new Exec(getRepoDir(), "git", "update-ref", ref, sha);
+        final int exit = exec.exec().waitFor();
+
+        if (exit != 0) {
+            if (new Exec(getRepoDir(), "git", "show-ref", ref).exec().waitFor() != 0) {
+                // Ref does not exists
+                final File f = new File(getGitDir(), ref);
+                f.getParentFile().mkdirs();
+
+                try (PrintStream s = new PrintStream(f)) {
+                    s.print(sha);
+                }
+                if (new Exec(getRepoDir(), "git", "update-ref", ref, sha)
+                        .waitFor() == 0) {
+                    return;
+                }
+            }
+
+            throw new ExecutionException("Failed to execute: git update-ref "
+                    + ref + ' ' + sha, exit);
+        }
+    }
+
+    public File getMarksFile(final String ref) {
         final File repoDir = getRepoDir();
         File gitDir = new File(getRepoDir(), ".git");
 
@@ -139,6 +205,23 @@ public class Git {
             gitDir = repoDir;
         }
 
-        return new File(new File(gitDir, "git-st"), FILE_MARKS);
+        return new File(new File(new File(gitDir, "git-st"), ref), FILE_MARKS);
+    }
+
+    public Marks loadMarks(final String ref) throws IOException {
+        final Marks marks = new Marks();
+        final File f = getMarksFile(ref);
+        return f.isFile() ? marks.load(f) : marks;
+    }
+
+    private static File findGitDir(final File repoDir) {
+        final String d = System.getenv("GIT_DIR");
+
+        if (d == null) {
+            final File dir = new File(repoDir, ".git");
+            return dir.isDirectory() ? dir : repoDir;
+        } else {
+            return new File(d);
+        }
     }
 }

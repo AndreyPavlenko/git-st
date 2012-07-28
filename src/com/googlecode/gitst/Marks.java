@@ -49,6 +49,7 @@ public class Marks extends TreeMap<Integer, String> {
     }
 
     public void store(final File file) throws IOException {
+        file.getParentFile().mkdirs();
         store(new BufferedOutputStream(new FileOutputStream(file)));
     }
 

@@ -13,13 +13,14 @@ import com.starbase.starteam.Item;
 public class FileRename extends FileChange {
     private final Item _sourceItem;
     private final Item _destItem;
-    private String _sourcePath;
-    private String _destPath;
+    private final FileModify _fileModify;
+    private final String _sourcePath;
+    private final String _destPath;
     private String _comment;
 
     public FileRename(final Item sourceItem, final Item destItem) {
-        _sourceItem = sourceItem;
-        _destItem = destItem;
+        this(sourceItem, destItem, Repo.getPath(sourceItem), Repo
+                .getPath(destItem));
     }
 
     public FileRename(final Item sourceItem, final Item destItem,
@@ -28,6 +29,12 @@ public class FileRename extends FileChange {
         _destItem = destItem;
         _sourcePath = sourcePath;
         _destPath = destPath;
+
+        if (destItem instanceof File) {
+            _fileModify = new FileModify(new FileData((File) destItem), true);
+        } else {
+            _fileModify = null;
+        }
     }
 
     public Item getSourceItem() {
@@ -38,18 +45,16 @@ public class FileRename extends FileChange {
         return _destItem;
     }
 
-    public synchronized String getSourcePath() {
-        if (_sourcePath == null) {
-            _sourcePath = Repo.getPath(getSourceItem());
-        }
+    public String getSourcePath() {
         return _sourcePath;
     }
 
-    public synchronized String getDestPath() {
-        if (_destPath == null) {
-            _destPath = Repo.getPath(getDestItem());
-        }
+    public String getDestPath() {
         return _destPath;
+    }
+
+    public FileModify getFileModify() {
+        return _fileModify;
     }
 
     @Override
@@ -68,18 +73,24 @@ public class FileRename extends FileChange {
     @Override
     public void write(final Repo repo, final PrintStream s) throws IOException,
             InterruptedException {
-        // Git performs rename detection.
-        final Item i = getDestItem();
-        new FileDelete(getSourceItem()).write(repo, s);
+        final FileModify mod = getFileModify();
 
-        if (i instanceof File) {
-            new FileModify(new FileData((File) i), true).write(repo, s);
+        if (mod != null) {
+            // Git performs rename detection.
+            new FileDelete(getSourceItem(), getSourcePath()).write(repo, s);
+            mod.write(repo, s);
+        } else {
+            s.print("R ");
+            s.print(Repo.quotePath(getSourcePath()));
+            s.print(' ');
+            s.print(Repo.quotePath(getDestPath()));
+            s.print('\n');
         }
     }
 
     @Override
     public String toString() {
-        return "R " + Repo.quotePath(getSourcePath()) + " -> "
-                + Repo.quotePath(getDestPath());
+        return "R " + getSourcePath() + ':' + getSourceItem().getDotNotation()
+                + " -> " + getDestPath() + ':' + getDestItem().getDotNotation();
     }
 }

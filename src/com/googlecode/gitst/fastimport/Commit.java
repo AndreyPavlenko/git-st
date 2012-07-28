@@ -1,5 +1,7 @@
 package com.googlecode.gitst.fastimport;
 
+import static com.googlecode.gitst.Repo.LS;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
@@ -7,6 +9,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.googlecode.gitst.Repo;
@@ -21,7 +24,7 @@ public class Commit implements FastimportCommand {
     private String _branch;
     private String _mark;
     private String _committer;
-    private String _fromCommittiSh;
+    private String _from;
     private String _comment;
 
     public Commit(final CommitId id) {
@@ -45,8 +48,8 @@ public class Commit implements FastimportCommand {
         return _committer;
     }
 
-    public String getFromCommittiSh() {
-        return _fromCommittiSh;
+    public String getFrom() {
+        return _from;
     }
 
     public Queue<FileChange> getChanges() {
@@ -73,10 +76,10 @@ public class Commit implements FastimportCommand {
                 }
             }
 
-            _comment = sb.toString().trim();
-
-            if (_comment.length() == 0) {
+            if (sb.length() == 0) {
                 _comment = "No comments";
+            } else {
+                _comment = sb.toString().trim();
             }
         }
 
@@ -95,8 +98,8 @@ public class Commit implements FastimportCommand {
         _committer = committer;
     }
 
-    public void setFromCommittiSh(final String fromCommittiSh) {
-        _fromCommittiSh = fromCommittiSh;
+    public void setFrom(final String from) {
+        _from = from;
     }
 
     public void addChange(final FileChange c) {
@@ -106,7 +109,7 @@ public class Commit implements FastimportCommand {
     @Override
     public void write(final Repo repo, final PrintStream s) throws IOException,
             InterruptedException {
-        s.print("commit refs/heads/");
+        s.print("commit ");
         s.print(getBranch());
         s.print('\n');
 
@@ -126,11 +129,11 @@ public class Commit implements FastimportCommand {
             s.print('\n');
         }
 
-        new TextData(getComment()).write(repo, s);
+        new TextData(toGitStComment(repo)).write(repo, s);
 
-        if (_fromCommittiSh != null) {
+        if (_from != null) {
             s.print("from ");
-            s.print(_fromCommittiSh);
+            s.print(_from);
             s.print('\n');
         }
 
@@ -139,5 +142,41 @@ public class Commit implements FastimportCommand {
         }
 
         s.print('\n');
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder();
+        final String comment = getComment();
+        sb.append(Repo.DATE_FORMAT.format(getId().getTime()));
+        sb.append(' ');
+        sb.append(getCommitter()).append(LS);
+        sb.append(comment);
+        sb.append(LS);
+
+        for (final FileChange c : getChanges()) {
+            sb.append(LS).append(c);
+        }
+
+        return sb.toString();
+    }
+
+    private String toGitStComment(final Repo repo) {
+        final StringBuilder sb = new StringBuilder();
+        final Set<String> changes = new TreeSet<>();
+
+        for (final FileChange c : getChanges()) {
+            changes.add(c.toString());
+        }
+        for (final Iterator<String> it = changes.iterator(); it.hasNext();) {
+            sb.append(it.next());
+
+            if (it.hasNext()) {
+                sb.append('\n');
+            }
+        }
+
+        return repo.getCommentFormat()
+                .format(new Object[] { getComment(), sb });
     }
 }

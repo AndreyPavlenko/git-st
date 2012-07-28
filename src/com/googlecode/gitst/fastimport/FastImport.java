@@ -1,24 +1,35 @@
 package com.googlecode.gitst.fastimport;
 
+import static com.googlecode.gitst.RepoProperties.META_PROP_ITEM_FILTER;
+
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.googlecode.gitst.Exec;
 import com.googlecode.gitst.ExecutionException;
 import com.googlecode.gitst.Git;
+import com.googlecode.gitst.ItemFilter;
 import com.googlecode.gitst.Logger;
 import com.googlecode.gitst.Logger.ProgressBar;
-import com.googlecode.gitst.Marks;
+import com.googlecode.gitst.RemoteFile;
 import com.googlecode.gitst.Repo;
+import com.googlecode.gitst.RepoProperties;
+import com.starbase.starteam.CheckoutEvent;
+import com.starbase.starteam.CheckoutListener;
 import com.starbase.starteam.CheckoutManager;
-import com.starbase.starteam.CheckoutOptions;
 import com.starbase.starteam.File;
 import com.starbase.starteam.Folder;
 import com.starbase.starteam.FolderUpdateEvent;
@@ -48,34 +59,36 @@ public class FastImport {
         return _repo;
     }
 
-    public Map<CommitId, Commit> loadChanges(final OLEDate endDate,
-            final boolean checkout) {
+    public Map<CommitId, Commit> loadChanges(final OLEDate endDate)
+            throws InterruptedException {
         final Repo repo = getRepo();
+        final RepoProperties props = repo.getRepoProperties();
         final View v = repo.connect();
-        final long end = endDate.getLongValue();
+        final ExecutorService threadPool = repo.getThreadPool();
         final ConcurrentSkipListMap<CommitId, Commit> commits = new ConcurrentSkipListMap<>();
-        _log.echo("Loading history");
-
-        if (checkout) {
-            final CheckoutManager cmgr = createCheckoutManager(v);
-            final ExecutorService threadPool = createCheckoutThreadPool();
-            load(commits, end, v.getRootFolder(), cmgr, threadPool);
-            threadPool.shutdown();
-        } else {
-            load(commits, end, v.getRootFolder(), null, null);
-        }
-
+        final ItemFilter filter = new ItemFilter(
+                props.getMetaProperty(META_PROP_ITEM_FILTER));
+        _log.info("Loading history");
+        load(filter, commits, endDate, v.getRootFolder(), threadPool);
+        threadPool.shutdown();
+        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         return commits;
     }
 
     public Map<CommitId, Commit> loadChanges(final OLEDate startDate,
-            final OLEDate endDate, final boolean checkout) {
+            final OLEDate endDate) throws InterruptedException {
         final Repo repo = getRepo();
+        final RepoProperties props = repo.getRepoProperties();
         final View v = repo.connect();
-        final ViewListener listener = new ViewListener(v, checkout);
+        final ItemFilter filter = new ItemFilter(
+                props.getMetaProperty(META_PROP_ITEM_FILTER));
+        final ViewListener listener = new ViewListener(filter);
         final ViewConfigurationDiffer diff = new ViewConfigurationDiffer(v);
 
-        _log.echo("Requesting changes since " + startDate);
+        if (_log.isInfoEnabled()) {
+            _log.info("Requesting changes since " + startDate);
+        }
+
         diff.addFolderUpdateListener(listener);
         diff.addItemUpdateListener(listener,
                 repo.getServer().typeForName("File"));
@@ -86,27 +99,18 @@ public class FastImport {
 
     public void submit(final Collection<Commit> commits) throws IOException,
             InterruptedException, ExecutionException {
-        _log.echo("Executing git fast-import");
+        _log.info("Executing git fast-import");
+        _log.info("");
         final Repo repo = getRepo();
         final Git git = repo.getGit();
-        final Marks marks = repo.getMarks();
-        int mark = marks.isEmpty() ? 0 : marks.lastKey();
-        final Exec exec = git.fastImport().exec();
+        final Exec exec = git.fastImport(repo.getBranchName()).exec();
         final Process proc = exec.getProcess();
+        @SuppressWarnings("resource")
+        final OutputStream out = proc.getOutputStream();
 
         try {
-            final String branch = repo.getBranchName();
-            final ProgressBar b = _log.createProgressBar(
-                    "Importing to git...    ", commits.size());
-
-            try (final PrintStream s = new PrintStream(proc.getOutputStream())) {
-                for (final Commit cmt : commits) {
-                    commit(cmt, ++mark, branch, s);
-                    b.done(1);
-                }
-
-                _log.echo();
-            }
+            submit(commits, out);
+            out.close();
 
             if (exec.waitFor() != 0) {
                 throw new ExecutionException(
@@ -118,143 +122,166 @@ public class FastImport {
         }
     }
 
-    private void commit(final Commit cmt, final int mark, final String branch,
-            final PrintStream s) throws IOException, InterruptedException {
+    public void submit(final Collection<Commit> commits, final OutputStream out)
+            throws IOException, InterruptedException, ExecutionException {
         final Repo repo = getRepo();
-        final CommitId id = cmt.getId();
-        final String committer = repo.toCommitter(id.getUserId());
+        final String branch = repo.getBranchName();
+        final ProgressBar b = _log.createProgressBar("Importing to git",
+                commits.size());
+        final ExecutorService threadPool = repo.getThreadPool();
+        final PrintStream s = new PrintStream(out);
+        final String from = repo.getGit().showRef(branch);
+        int mark = 0;
+        checkout(commits, threadPool);
 
-        _log.echo(repo.getDateTimeFormat().format(id.getTime()) + " "
-                + committer + ':');
-        _log.echo(cmt.getComment());
-        _log.echo();
+        for (final Commit cmt : commits) {
+            final CommitId id = cmt.getId();
+            final String committer = repo.toCommitter(id.getUserId());
 
-        for (final FileChange c : cmt.getChanges()) {
-            _log.echo(c);
+            if (mark != 0) {
+                cmt.setFrom(':' + String.valueOf(mark));
+            } else if (from != null) {
+                cmt.setFrom(from);
+            }
+
+            cmt.setMark(":" + (++mark));
+            cmt.setBranch(branch);
+            cmt.setCommitter(committer);
+
+            if (_log.isInfoEnabled()) {
+                _log.info(cmt);
+                _log.info("--------------------------------------------------------------------------------");
+            }
+
+            cmt.write(repo, s);
+            b.done(1);
         }
 
-        _log.echo("--------------------------------------------------------------------------------");
-
-        cmt.setMark(":" + mark);
-        cmt.setBranch(branch);
-        cmt.setCommitter(committer);
-
-        if (mark != 1) {
-            cmt.setFromCommittiSh(':' + String.valueOf(mark - 1));
-        }
-
-        cmt.write(getRepo(), s);
+        out.flush();
+        _log.info("");
+        threadPool.shutdown();
+        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
     }
 
-    private void load(final ConcurrentMap<CommitId, Commit> commits,
-            final long endDate, final Folder folder,
-            final CheckoutManager cmgr, final ExecutorService threadPool) {
-        for (final Enumeration<?> en = getFiles(cmgr, folder).elements(); en
+    private void checkout(final Collection<Commit> commits,
+            final ExecutorService threadPool) {
+        final Thread main = Thread.currentThread();
+
+        threadPool.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final Repo repo = getRepo();
+                    final CoListener l = new CoListener(repo, commits);
+                    final CheckoutManager mgr = repo.createCheckoutManager();
+                    mgr.addCheckoutListener(l);
+                    mgr.checkout(l.getItemList());
+                } catch (final Throwable ex) {
+                    getRepo().getLogger().error("Checkout failed", ex);
+                    main.interrupt();
+                }
+            }
+        });
+    }
+
+    private void load(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits,
+            final OLEDate endDate, final Folder folder,
+            final ExecutorService threadPool) {
+        for (final Enumeration<?> en = folder.getList("File").elements(); en
                 .hasMoreElements();) {
             final File f = (File) en.nextElement();
             final Item[] history = f.getHistory();
-            long time;
             File prev = null;
 
             for (int i = history.length - 1; i >= 0; i--) {
                 final File h = (File) history[i];
-                time = h.getModifiedTime().getLongValue();
+                load(filter, commits, endDate, h, prev, threadPool);
+                prev = h;
+            }
+        }
+        for (final Enumeration<?> en = folder.getList("Folder").elements(); en
+                .hasMoreElements();) {
+            load(filter, commits, endDate, (Folder) en.nextElement(),
+                    threadPool);
+        }
+    }
 
-                if (time < endDate) {
-                    load(commits, time, h, prev, cmgr, threadPool);
-                    prev = h;
+    private void load(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits,
+            final OLEDate endDate, final File file, final File prev,
+            final ExecutorService threadPool) {
+        threadPool.submit(new Runnable() {
+
+            @Override
+            public void run() {
+                final OLEDate date = file.getModifiedTime();
+
+                if (date.getDoubleValue() >= endDate.getDoubleValue()) {
+                    return;
+                }
+
+                if (prev == null) {
+                    final FileData data = new FileData(file);
+                    createFilemodify(filter, commits, date, data, true);
+                } else if (file.isDeleted()) {
+                    createFiledelete(filter, commits, date, file);
                 } else {
-                    break;
+                    final String path = Repo.getPath(file);
+                    final String prevPath = Repo.getPath(prev);
+
+                    if (path.equals(prevPath)) {
+                        final FileData data = new FileData(file, path);
+                        createFilemodify(filter, commits, date, data, false);
+                    } else {
+                        final FileRename rename = new FileRename(prev, file,
+                                prevPath, path);
+                        createFilerename(filter, commits, date, rename);
+                    }
                 }
             }
-        }
-        for (final Enumeration<?> en = getFolders(cmgr, folder).elements(); en
-                .hasMoreElements();) {
-            load(commits, endDate, (Folder) en.nextElement(), cmgr, threadPool);
-        }
+        });
     }
 
-    private static ItemList getFiles(final CheckoutManager cmgr,
-            final Folder folder) {
-        if (cmgr != null) {
-            synchronized (cmgr) {
-                return folder.getList("File");
-            }
-        } else {
-            return folder.getList("File");
-        }
-    }
-
-    private static ItemList getFolders(final CheckoutManager cmgr,
-            final Folder folder) {
-        if (cmgr != null) {
-            synchronized (cmgr) {
-                return folder.getList("Folder");
-            }
-        } else {
-            return folder.getList("Folder");
-        }
-    }
-
-    private void load(final ConcurrentMap<CommitId, Commit> commits,
-            final long time, final File file, final File prev,
-            final CheckoutManager cmgr, final ExecutorService threadPool) {
-        if (prev == null) {
-            final FileData data = new FileData(file);
-            createFilemodify(commits, time, data, true, cmgr, threadPool);
-        } else if (file.isDeleted()) {
-            createFiledelete(commits, time, file);
-        } else {
-            final String path = Repo.getPath(file);
-            final String prevPath = Repo.getPath(prev);
-
-            if (path.equals(prevPath)) {
-                final FileData data = new FileData(file, path);
-                createFilemodify(commits, time, data, false, cmgr, threadPool);
-            } else {
-                final FileRename rename = new FileRename(prev, file, prevPath,
-                        path);
-                createFilerename(commits, time, rename);
-            }
-        }
-    }
-
-    private void createFilemodify(
-            final ConcurrentMap<CommitId, Commit> commits, final long time,
-            final FileData data, final boolean isNewFile,
-            final CheckoutManager cmgr, final ExecutorService threadPool) {
-        if (cmgr != null) {
-            try {
-                data.checkout(getRepo(), cmgr, threadPool);
-            } catch (final Throwable ex) {
-                _log.error("Error occurred", ex);
-            }
-        }
-
+    private void createFilemodify(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits, final OLEDate date,
+            final FileData data, final boolean isNewFile) {
         final int user = data.getFile().getModifiedBy();
-        final FileModify c = new FileModify(data, isNewFile);
-        final Commit cmt = getCommit(commits, user, time);
-        cmt.addChange(c);
-        logChange(time, isNewFile ? "A" : "M", c.getPath());
+
+        if (!filter.apply(user, date.getDoubleValue())) {
+            final long time = date.getLongValue();
+            final FileModify c = new FileModify(data, isNewFile);
+            final Commit cmt = getCommit(commits, user, time);
+            cmt.addChange(c);
+            logChange(time, isNewFile ? "A" : "M", c.getPath());
+        }
     }
 
-    private void createFilerename(
-            final ConcurrentMap<CommitId, Commit> commits, final long time,
+    private void createFilerename(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits, final OLEDate date,
             final FileRename c) {
         final int user = c.getDestItem().getModifiedBy();
-        final Commit cmt = getCommit(commits, user, time);
-        cmt.addChange(c);
-        logChange(time, "R", c.getSourcePath() + " -> " + c.getDestPath());
+
+        if (!filter.apply(user, date.getDoubleValue())) {
+            final long time = date.getLongValue();
+            final Commit cmt = getCommit(commits, user, time);
+            cmt.addChange(c);
+            logChange(time, "R", c.getSourcePath() + " -> " + c.getDestPath());
+        }
     }
 
-    private void createFiledelete(
-            final ConcurrentMap<CommitId, Commit> commits, final long time,
+    private void createFiledelete(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits, final OLEDate date,
             final Item item) {
         final int user = item.getDeletedUserID();
-        final FileDelete c = new FileDelete(item);
-        final Commit cmt = getCommit(commits, user, time);
-        cmt.addChange(c);
-        logChange(time, "D", c.getPath());
+
+        if (!filter.apply(user, date.getDoubleValue())) {
+            final long time = date.getLongValue();
+            final FileDelete c = new FileDelete(item);
+            final Commit cmt = getCommit(commits, user, time);
+            cmt.addChange(c);
+            logChange(time, "D", c.getPath());
+        }
     }
 
     private static Commit getCommit(
@@ -267,44 +294,24 @@ public class FastImport {
     }
 
     private void logChange(final long time, final String type, final String path) {
-        _log.echo(getRepo().getDateTimeFormat().format(time) + "| " + type
-                + ' ' + path);
-    }
-
-    private static CheckoutManager createCheckoutManager(final View view) {
-        final CheckoutOptions co = new CheckoutOptions(view);
-        co.setEOLConversionEnabled(false);
-        co.setOptimizeForSlowConnections(true);
-        co.setUpdateStatus(false);
-        co.setForceCheckout(true);
-        return view.createCheckoutManager(co);
-    }
-
-    private static ExecutorService createCheckoutThreadPool() {
-        return Executors.newSingleThreadExecutor();
+        if (_log.isInfoEnabled()) {
+            _log.info(Repo.DATE_FORMAT.format(time) + "| " + type + ' ' + path);
+        }
     }
 
     private final class ViewListener implements FolderUpdateListener,
             ItemUpdateListener {
         private final ConcurrentMap<CommitId, Commit> _commits = new ConcurrentSkipListMap<>();
-        private final CheckoutManager _cmgr;
-        private final ExecutorService _threadPool;
+        private final ExecutorService _threadPool = getRepo().getThreadPool();
+        private final ItemFilter _filter;
 
-        ViewListener(final View view, final boolean checkout) {
-            if (checkout) {
-                _cmgr = createCheckoutManager(view);
-                _threadPool = createCheckoutThreadPool();
-
-            } else {
-                _cmgr = null;
-                _threadPool = null;
-            }
+        public ViewListener(final ItemFilter filter) {
+            _filter = filter;
         }
 
-        public synchronized Map<CommitId, Commit> getCommits() {
-            if (_threadPool != null) {
-                _threadPool.shutdown();
-            }
+        public Map<CommitId, Commit> getCommits() throws InterruptedException {
+            _threadPool.shutdown();
+            _threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
             return _commits;
         }
 
@@ -312,48 +319,58 @@ public class FastImport {
         public void itemAdded(final ItemUpdateEvent e) {
             final File f = (File) e.getNewItem();
             final FileData data = new FileData(f);
-            final long time = f.getModifiedTime().getLongValue();
-            createFilemodify(_commits, time, data, true, _cmgr, _threadPool);
+            final OLEDate date = f.getModifiedTime();
+            createFilemodify(_filter, _commits, date, data, true);
         }
 
         @Override
         public void itemChanged(final ItemUpdateEvent e) {
-            final File f = (File) e.getNewItem();
-            final FileData data = new FileData(f);
-            final long time = f.getModifiedTime().getLongValue();
-            createFilemodify(_commits, time, data, false, _cmgr, _threadPool);
+            final File src = (File) e.getOldItem();
+            final File dest = (File) e.getNewItem();
+            final String srcPath = Repo.getPath(src);
+            final String destPath = Repo.getPath(dest);
+            final OLEDate date = dest.getModifiedTime();
+
+            if (!srcPath.equals(destPath)) {
+                final FileRename c = new FileRename(src, dest, srcPath,
+                        destPath);
+                createFilerename(_filter, _commits, date, c);
+            } else {
+                final FileData data = new FileData(dest);
+                createFilemodify(_filter, _commits, date, data, false);
+            }
         }
 
         @Override
         public void itemMoved(final ItemUpdateEvent e) {
             final Item src = e.getOldItem();
             final Item dest = e.getNewItem();
-            final long time = dest.getModifiedTime().getLongValue();
+            final OLEDate date = dest.getModifiedTime();
             final FileRename c = new FileRename(src, dest);
-            createFilerename(_commits, time, c);
+            createFilerename(_filter, _commits, date, c);
         }
 
         @Override
         public void itemRemoved(final ItemUpdateEvent e) {
             final Item item = e.getOldItem();
-            final long time = item.getModifiedTime().getLongValue();
-            createFiledelete(_commits, time, item);
+            final OLEDate date = item.getModifiedTime();
+            createFiledelete(_filter, _commits, date, item);
         }
 
         @Override
         public void folderMoved(final FolderUpdateEvent e) {
             final Item src = e.getOldFolder();
             final Item dest = e.getNewFolder();
-            final long time = dest.getModifiedTime().getLongValue();
+            final OLEDate date = dest.getModifiedTime();
             final FileRename c = new FileRename(src, dest);
-            createFilerename(_commits, time, c);
+            createFilerename(_filter, _commits, date, c);
         }
 
         @Override
         public void folderRemoved(final FolderUpdateEvent e) {
             final Item item = e.getOldFolder();
-            final long time = item.getModifiedTime().getLongValue();
-            createFiledelete(_commits, time, item);
+            final OLEDate date = item.getModifiedTime();
+            createFiledelete(_filter, _commits, date, item);
         }
 
         @Override
@@ -362,6 +379,110 @@ public class FastImport {
 
         @Override
         public void folderChanged(final FolderUpdateEvent e) {
+        }
+    }
+
+    private static final class CoListener implements CheckoutListener {
+        private final Repo _repo;
+        private final ProgressBar _pbar;
+        private final Map<RemoteFile, List<FileData>> _files;
+        private final ItemList _itemList;
+
+        public CoListener(final Repo repo, final Collection<Commit> commits) {
+            _repo = repo;
+            _files = new HashMap<>();
+            _itemList = new ItemList();
+            final Logger log = repo.getLogger();
+
+            for (final Commit cmt : commits) {
+                for (final FileChange c : cmt.getChanges()) {
+                    final FileData d;
+
+                    if (c instanceof FileModify) {
+                        d = ((FileModify) c).getFileData();
+                    } else if (c instanceof FileRename) {
+                        final FileModify mod = ((FileRename) c).getFileModify();
+
+                        if (mod != null) {
+                            d = mod.getFileData();
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+
+                    final File f = d.getFile();
+                    final RemoteFile id = new RemoteFile(f);
+                    final List<FileData> old = _files.put(id,
+                            Collections.singletonList(d));
+
+                    if (old != null) {
+                        final List<FileData> newList = new ArrayList<>(
+                                old.size() + 1);
+                        newList.addAll(old);
+                        newList.add(d);
+                        _files.put(id, newList);
+
+                        if (log.isDebugEnabled()) {
+                            log.debug("Warning! File duplicated in several commits: "
+                                    + d.getPath());
+                        }
+                    }
+
+                    _itemList.addItem(d.getFile());
+                }
+            }
+
+            _pbar = repo.getLogger().createProgressBar("Checking out",
+                    _itemList.size());
+        }
+
+        public ItemList getItemList() {
+            return _itemList;
+        }
+
+        @Override
+        public void onStartFile(final CheckoutEvent e) {
+            try {
+                final File f = e.getCurrentFile();
+                e.setCurrentWorkingFile(_repo.createTempFile(_files
+                        .get(new RemoteFile(f)).get(0).getPath()));
+            } catch (final IOException ex) {
+                throw new RuntimeException();
+            }
+        }
+
+        @Override
+        public void onNotifyProgress(final CheckoutEvent e) {
+            if (e.isFinished()) {
+                _pbar.done(1);
+                final File f = e.getCurrentFile();
+                final RemoteFile id = new RemoteFile(f);
+                java.io.File wf = e.getCurrentWorkingFile();
+                final List<FileData> data = _files.get(id);
+
+                if (data.size() > 1) {
+                    for (final Iterator<FileData> it = data.iterator(); it
+                            .hasNext();) {
+                        final FileData d = it.next();
+                        d.setCheckout(wf);
+
+                        if (it.hasNext()) {
+                            try {
+                                final java.io.File newFile = _repo
+                                        .createTempFile(d.getPath());
+                                Repo.copyFile(wf, newFile);
+                                wf = newFile;
+                            } catch (final IOException ex) {
+                                throw new RuntimeException(ex);
+                            }
+                        }
+                    }
+                } else {
+                    data.get(0).setCheckout(wf);
+                }
+            }
         }
     }
 }

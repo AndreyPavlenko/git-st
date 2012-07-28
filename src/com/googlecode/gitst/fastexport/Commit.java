@@ -1,7 +1,8 @@
 package com.googlecode.gitst.fastexport;
 
+import static com.googlecode.gitst.Repo.LS;
+
 import java.io.IOException;
-import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import com.googlecode.gitst.Logger;
+import com.googlecode.gitst.RemoteFile;
 import com.googlecode.gitst.Repo;
 import com.starbase.starteam.CheckinEvent;
 import com.starbase.starteam.CheckinListener;
@@ -89,23 +91,22 @@ public class Commit implements FastExportCommand {
 
         if (!_committed && !changes.isEmpty()) {
             final CheckinManager mgr = repo.createCheckinManager(getComment());
-            final Map<File, FileModify> mod = new LinkedHashMap<>();
+            final Map<RemoteFile, FileModify> mod = new LinkedHashMap<>();
             final Logger log = repo.getLogger();
 
+            if (log.isInfoEnabled()) {
+                log.info(this);
+                log.info("--------------------------------------------------------------------------------");
+            }
             for (final FileChange c : changes) {
                 if (c instanceof FileModify) {
                     final FileModify m = (FileModify) c;
                     final File f = m.getFile(repo);
-                    mod.put(f, m);
+                    mod.put(new RemoteFile(f), m);
                 } else {
-                    log.echo(c);
                     c.exec(repo, this);
                 }
             }
-
-            log.echo(this);
-            log.echo("--------------------------------------------------------------------------------");
-
             if (!mod.isEmpty()) {
                 commit(mgr, repo, mod);
             }
@@ -117,7 +118,7 @@ public class Commit implements FastExportCommand {
     }
 
     private void commit(final CheckinManager mgr, final Repo repo,
-            final Map<File, FileModify> changes) throws IOException {
+            final Map<RemoteFile, FileModify> changes) throws IOException {
         final ItemList items = new ItemList();
         final Listener l = new Listener(repo, changes);
 
@@ -133,14 +134,17 @@ public class Commit implements FastExportCommand {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        sb.append(DateFormat.getDateTimeInstance(DateFormat.SHORT,
-                DateFormat.SHORT).format(getDate()));
+        final String comment = getComment();
+        sb.append(Repo.DATE_FORMAT.format(getDate()));
         sb.append(' ');
-        sb.append(getCommitter()).append('\n');
-        sb.append(getComment()).append("\n\n");
+        sb.append(getCommitter()).append(LS);
+        sb.append(comment);
 
+        if (!comment.endsWith("\n")) {
+            sb.append(LS);
+        }
         for (final FileChange c : getChanges()) {
-            sb.append(c).append('\n');
+            sb.append(LS).append(c);
         }
 
         return sb.toString();
@@ -148,9 +152,10 @@ public class Commit implements FastExportCommand {
 
     private final class Listener implements CheckinListener {
         private final Repo _repo;
-        private final Map<File, FileModify> _changes;
+        private final Map<RemoteFile, FileModify> _changes;
 
-        public Listener(final Repo repo, final Map<File, FileModify> changes) {
+        public Listener(final Repo repo,
+                final Map<RemoteFile, FileModify> changes) {
             _repo = repo;
             _changes = changes;
         }
@@ -159,7 +164,8 @@ public class Commit implements FastExportCommand {
         public void onStartFile(final CheckinEvent e) {
             try {
                 final File f = e.getCurrentFile();
-                e.setCurrentWorkingFile(_changes.get(f).getLocalFile(_repo));
+                e.setCurrentWorkingFile(_changes.get(new RemoteFile(f))
+                        .getLocalFile(_repo));
             } catch (final IOException ex) {
                 throw new RuntimeException(ex);
             }

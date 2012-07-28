@@ -1,74 +1,68 @@
 package com.googlecode.gitst;
 
+import java.io.BufferedReader;
 import java.io.Console;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Andrey Pavlenko
  */
 public class RepoProperties {
-    public static final String PROP_HOST = "Host";
-    public static final String PROP_PORT = "Port";
-    public static final String PROP_CACHE_AGENT_HOST = "CacheAgentHost";
-    public static final String PROP_CACHE_AGENT_PORT = "CacheAgentPort";
-    public static final String PROP_AUTO_LOCATE_CACHE_AGENT = "AutoLocateCacheAgent";
-    public static final String PROP_PROJECT = "Project";
-    public static final String PROP_VIEW = "View";
-    public static final String PROP_USER = "User";
-    public static final String PROP_PASSWORD = "Password";
-    public static final String PROP_BRANCH = "Branch";
-    public static final String PROP_MAX_THREADS = "MaxThreads";
-    public static final String PROP_IGNORE_FILES = "IgnoreFiles";
-    public static final String PROP_USER_NAME_PATTERN = "UserNamePattern";
+    public static final String PROP_URL = "url";
+    public static final String PROP_CA = "ca";
+    public static final String PROP_USER = "user";
+    public static final String PROP_PASSWORD = "password";
+    public static final String PROP_THREADS = "threads";
+    public static final String PROP_IGNORE = "ignore";
+    public static final String PROP_USER_PATTERN = "userpattern";
+    public static final String PROP_FETCH = "fetch";
     public static final String PROP_DEFAULT_BRANCH = "master";
-    public static final String PROP_DEFAULT_MAX_THREADS = "3";
-    public static final String PROP_DEFAULT_IGNORE_FILES = "\\.gitignore;.*/\\.gitignore";
-    public static final String PROP_DEFAULT_USER_NAME_PATTERN = "{0} <{4}.{2}@mycompany.com>";
+    public static final String PROP_DEFAULT_THREADS = "3";
+    public static final String PROP_DEFAULT_IGNORE = "\\.gitignore;.*/\\.gitignore";
+    public static final String PROP_DEFAULT_USER_PATTERN = "{0} <{4}.{2}@mycompany.com>";
     public static final String META_PROP_LAST_SYNC_DATE = "LastSyncDate";
+    public static final String META_PROP_ITEM_FILTER = "ItemFilter";
 
-    private final File _repoDir;
-    private final File _configDir;
+    private final Git _git;
+    private final String _remoteName;
     private final File _gitstDir;
-    private final Properties _globalProperties = new Properties();
-    private final Properties _repoProperties = new Properties(_globalProperties);
-    private final Properties _sessionProperties = new Properties(
-            _repoProperties);
-    private final Properties _globalUsersMap = new Properties();
-    private final Properties _repoUsersMap = new Properties(_globalUsersMap);
+    private final Map<String, String> _globalConfig = new ConcurrentHashMap<>();
+    private final Map<String, String> _localConfig = new ConcurrentHashMap<>();
+    private final Map<String, String> _sessionConfig = new ConcurrentHashMap<>();
+    private final Map<Integer, String> _globalUsers = new ConcurrentHashMap<>();
+    private final Map<Integer, String> _localUsers = new ConcurrentHashMap<>();
+    private final Map<Integer, String> _sessionUsers = new ConcurrentHashMap<>();
     private final Properties _metaProperties = new Properties();
-    private final Map<Integer, String> _uidToName = new ConcurrentHashMap<>();
 
-    public RepoProperties(final File repoDir, final File configDir)
-            throws IOException {
-        File gitDir = new File(repoDir, ".git");
-
-        if (!gitDir.isDirectory()) {
-            // Bare repository
-            gitDir = repoDir;
-        }
-
-        _repoDir = repoDir;
-        _configDir = configDir;
-        _gitstDir = new File(gitDir, "git-st");
-        loadProperties();
-        loadUsersMap();
+    public RepoProperties(final Git git, final String remoteName)
+            throws IOException, InterruptedException, ExecutionException {
+        _git = git;
+        _remoteName = remoteName;
+        _gitstDir = new File(git.getGitDir(), "git-st");
+        load();
         loadMetaProperties();
     }
 
-    public File getRepoDir() {
-        return _repoDir;
+    public Git getGit() {
+        return _git;
     }
 
-    public File getConfigDir() {
-        return _configDir;
+    public String getRemoteName() {
+        return _remoteName;
+    }
+
+    public File getRepoDir() {
+        return getGit().getRepoDir();
     }
 
     public File getGitstDir() {
@@ -76,18 +70,12 @@ public class RepoProperties {
     }
 
     public String getProperty(final String name) throws ConfigurationException {
-        final String value = _sessionProperties.getProperty(name);
-
-        if (value == null) {
-            throw new ConfigurationException(
-                    "Missing required configuration property: " + name);
-        }
-
-        return value;
+        return get(name, _sessionConfig, _localConfig, _globalConfig);
     }
 
     public String getProperty(final String name, final String defaultValue) {
-        return _sessionProperties.getProperty(name, defaultValue);
+        return get(name, defaultValue, _sessionConfig, _localConfig,
+                _globalConfig);
     }
 
     public String getMetaProperty(final String name) {
@@ -95,56 +83,92 @@ public class RepoProperties {
     }
 
     public String getUserMapping(final Integer uid) {
-        return _uidToName.get(uid);
+        return get(uid, null, _sessionUsers, _localUsers, _globalUsers);
     }
 
-    public String setGlobalProperty(final String name, final String value) {
-        return (String) _globalProperties.setProperty(name, value);
+    public String getBranchName() {
+        String branch = getProperty(PROP_FETCH, null);
+
+        if (branch == null) {
+            return "refs/heads/master";
+        } else {
+            final int i1 = branch.startsWith("+") ? 1 : 0;
+            int i2 = branch.indexOf(':');
+            branch = (i2 == -1) ? branch.substring(i1) : branch.substring(i1,
+                    i2);
+            i2 = branch.indexOf('*');
+
+            if (i2 != -1) {
+                branch = branch.substring(0, i2) + "/master";
+            }
+
+            return branch;
+        }
     }
 
-    public String setRepoProperty(final String name, final String value) {
-        return (String) _repoProperties.setProperty(name, value);
+    public String getRemoteBranchName() {
+        String branch = getProperty(PROP_FETCH, null);
+
+        if (branch == null) {
+            return "refs/remotes/origin/master";
+        } else {
+            int i = branch.indexOf(':');
+
+            if (i != -1) {
+                branch = branch.substring(i + 1);
+            }
+
+            i = branch.indexOf('*');
+
+            if (i != -1) {
+                branch = branch.substring(0, i) + "/master";
+            }
+
+            return branch;
+        }
+    }
+
+    public String setLocalProperty(final String name, final String value) {
+        return (value == null) ? _localConfig.remove(name) : _localConfig.put(
+                name, value);
     }
 
     public String setSessionProperty(final String name, final String value) {
-        return (String) _sessionProperties.setProperty(name, value);
+        return (value == null) ? _sessionConfig.remove(name) : _sessionConfig
+                .put(name, value);
     }
 
     public String setMetaProperty(final String name, final String value) {
-        return (String) _metaProperties.setProperty(name, value);
+        return (String) ((value == null) ? _metaProperties.remove(name)
+                : _metaProperties.setProperty(name, value));
     }
 
-    public String setGlobalUserMapping(final Integer uid, final String name) {
-        _uidToName.put(uid, name);
-        return (String) _globalUsersMap.setProperty(uid.toString(), name);
-    }
-
-    public String setRepoUserMapping(final Integer uid, final String name) {
-        _uidToName.put(uid, name);
-        return (String) _repoUsersMap.setProperty(uid.toString(), name);
+    public String setLocalUserMapping(final Integer uid, final String name) {
+        return (name == null) ? _localUsers.remove(uid) : _localUsers.put(uid,
+                name);
     }
 
     public String setSessionUserMapping(final Integer uid, final String name) {
-        return _uidToName.put(uid, name);
+        return (name == null) ? _sessionUsers.remove(uid) : _sessionUsers.put(
+                uid, name);
     }
 
     public String getOrRequestProperty(final String name, final String prompt,
             final boolean isPassword) {
-        final String value = _sessionProperties.getProperty(name);
+        final String value = getProperty(name, null);
         return (value == null) ? requestProperty(name, prompt, isPassword)
                 : value;
     }
 
     public String requestProperty(final String name, final String prompt,
             final boolean isPassword) {
+        final String value;
         final Console c = System.console();
 
         if (c == null) {
             throw new ConfigurationException(
                     "Missing required configuration property: " + name);
         }
-
-        final String value;
 
         if (isPassword) {
             final char[] pwd = c.readPassword(prompt);
@@ -154,110 +178,144 @@ public class RepoProperties {
         }
 
         if (value != null) {
-            _sessionProperties.setProperty(name, value);
+            setSessionProperty(name, value);
+        } else {
+            throw new ConfigurationException(
+                    "Missing required configuration property: " + name);
         }
 
         return value;
     }
 
-    public void saveGlobalProperties() throws IOException {
-        final File confDir = getConfigDir();
-
-        if (confDir == null) {
-            throw new ConfigurationException("Config dir is not specified");
-        }
-
-        save(_globalProperties, new File(confDir, "global.properties"),
-                "Global properties");
+    public void saveLocalProperties() throws IOException, InterruptedException,
+            ExecutionException {
+        save("remote." + getRemoteName() + '.', _localConfig);
     }
 
-    public void saveGlobalUserMapings() throws IOException {
-        final File confDir = getConfigDir();
-
-        if (confDir == null) {
-            throw new ConfigurationException("Config dir is not specified");
-        }
-
-        save(_globalUsersMap, new File(confDir, "users.map"),
-                "Global users mapping");
-    }
-
-    public void saveRepoProperties() throws IOException {
-        save(_repoProperties, new File(getGitstDir(), "repository.properties"),
-                "Repository properties");
-    }
-
-    public void saveRepoUserMapings() throws IOException {
-        save(_repoUsersMap, new File(getGitstDir(), "users.properties"),
-                "Repository users mapping");
+    public void saveLocalUserMapings() throws IOException,
+            InterruptedException, ExecutionException {
+        save("remote." + getRemoteName() + ".uid", _localUsers);
     }
 
     public void saveMeta() throws IOException {
-        save(_metaProperties, new File(getGitstDir(), ".meta"),
-                "Repository meta properties");
-    }
-
-    private static void save(final Properties props, final File f,
-            final String comments) throws IOException {
-        final File dir = f.getParentFile();
-
-        if (!dir.isDirectory()) {
-            dir.mkdirs();
-        }
+        final File dir = new File(getGitstDir(), getBranchName());
+        final File f = new File(dir, ".meta");
+        dir.mkdirs();
 
         try (OutputStream out = new FileOutputStream(f)) {
-            props.store(out, comments);
-        }
-    }
-
-    private void loadProperties() throws IOException {
-        final File repoProps = new File(_gitstDir, "repository.properties");
-
-        if (_configDir != null) {
-            final File globalProps = new File(_configDir, "global.properties");
-
-            if (globalProps.isFile()) {
-                load(_globalProperties, globalProps);
-            }
-        }
-        if (repoProps.isFile()) {
-            load(_repoProperties, repoProps);
-        }
-    }
-
-    private void loadUsersMap() throws IOException {
-        final File repoMap = new File(_gitstDir, "users.map");
-
-        if (_configDir != null) {
-            final File globalMap = new File(_configDir, "users.map");
-
-            if (globalMap.isFile()) {
-                load(_globalUsersMap, globalMap);
-            }
-        }
-        if (repoMap.isFile()) {
-            load(_repoUsersMap, repoMap);
-        }
-
-        for (final Map.Entry<Object, Object> e : _repoUsersMap.entrySet()) {
-            final Integer uid = Integer.valueOf((String) e.getKey());
-            final String name = (String) e.getValue();
-            _uidToName.put(uid, name);
+            _metaProperties.store(out, "Git-ST meta properties");
         }
     }
 
     private void loadMetaProperties() throws IOException {
-        final File meta = new File(getGitstDir(), ".meta");
+        final File dir = new File(getGitstDir(), getBranchName());
+        final File meta = new File(dir, ".meta");
 
         if (meta.isFile()) {
-            load(_metaProperties, meta);
+            try (final InputStream in = new FileInputStream(meta)) {
+                _metaProperties.load(in);
+            }
         }
     }
 
-    private static void load(final Properties props, final File f)
-            throws IOException {
-        try (final InputStream in = new FileInputStream(f)) {
-            props.load(in);
+    private void load() throws IOException, InterruptedException,
+            ExecutionException {
+        load("--system", "git-st.", _globalConfig, _globalUsers);
+        load("--global", "git-st.", _globalConfig, _globalUsers);
+        load("--local", "remote." + getRemoteName() + '.', _localConfig,
+                _localUsers);
+    }
+
+    private void load(final String scope, final String pref,
+            final Map<String, String> config, final Map<Integer, String> users)
+            throws IOException, InterruptedException, ExecutionException {
+        final String uidPref = pref + "uid";
+        final Exec exec = getGit().exec("config", scope, "--get-regexp",
+                pref + '*');
+        exec.setOutStream(null);
+        final Process proc = exec.exec().getProcess();
+
+        try {
+            final BufferedReader r = new BufferedReader(new InputStreamReader(
+                    proc.getInputStream()));
+
+            for (String s = r.readLine(); s != null; s = r.readLine()) {
+                final int ind = s.indexOf(' ');
+
+                if ((ind != -1) && (ind != (s.length() - 1))) {
+                    final String key = s.substring(0, ind);
+                    final String value = s.substring(ind + 1).trim();
+
+                    if (key.startsWith(uidPref)) {
+                        users.put(Integer.parseInt(key.substring(uidPref
+                                .length())), value);
+                    } else if (key.startsWith(pref)) {
+                        config.put(key.substring(pref.length()), value);
+                    }
+                }
+            }
+
+            final int exit = exec.waitFor();
+
+            if ((exit != 0) && (exit != 1)) {
+                throw new ExecutionException(
+                        "git config failed with exit code " + exit, exit);
+            }
+        } finally {
+            proc.destroy();
         }
+    }
+
+    private <K, V> void save(final String pref, final Map<K, V> config)
+            throws IOException, InterruptedException, ExecutionException {
+        final Git git = getGit();
+        final TreeMap<K, V> sort = new TreeMap<>(config);
+
+        for (final Map.Entry<K, V> e : sort.entrySet()) {
+            final String key = pref + e.getKey();
+            final String value = String.valueOf(e.getValue());
+            final Exec exec = git.exec("config", "--replace-all", key, value);
+            final int exit = exec.exec().waitFor();
+
+            if (exit != 0) {
+                throw new ExecutionException(
+                        "git config failed with exit code " + exit, exit);
+            }
+        }
+    }
+
+    private static <K, V> V get(final K key, final Map<K, V> m1,
+            final Map<K, V> m2, final Map<K, V> m3) {
+        V value = m1.get(key);
+
+        if ((value == null) && (m2 != null)) {
+            value = m2.get(key);
+
+            if ((value == null) && (m3 != null)) {
+                value = m3.get(key);
+            }
+        }
+
+        if (value == null) {
+            throw new ConfigurationException(
+                    "Missing required configuration property: " + key);
+        }
+
+        return value;
+    }
+
+    private static <K, V> V get(final K key, final V defaultValue,
+            final Map<K, V> m1, final Map<K, V> m2, final Map<K, V> m3) {
+        V value = m1.get(key);
+
+        if ((value == null) && (m2 != null)) {
+            value = m2.get(key);
+
+            if ((value == null) && (m3 != null)) {
+                value = m3.get(key);
+            }
+        }
+
+        return value == null ? defaultValue : value;
     }
 }

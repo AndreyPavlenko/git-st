@@ -1,18 +1,14 @@
 package com.googlecode.gitst;
 
-import static com.googlecode.gitst.RepoProperties.*;
-import static com.googlecode.gitst.RepoProperties.PROP_BRANCH;
-import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_HOST;
-import static com.googlecode.gitst.RepoProperties.PROP_CACHE_AGENT_PORT;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_BRANCH;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_NAME_PATTERN;
-import static com.googlecode.gitst.RepoProperties.PROP_HOST;
-import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
-import static com.googlecode.gitst.RepoProperties.PROP_PORT;
-import static com.googlecode.gitst.RepoProperties.PROP_PROJECT;
-import static com.googlecode.gitst.RepoProperties.PROP_USER;
-import static com.googlecode.gitst.RepoProperties.PROP_USER_NAME_PATTERN;
-import static com.googlecode.gitst.RepoProperties.PROP_VIEW;
+import static com.googlecode.gitst.RepoProperties.PROP_CA;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_IGNORE;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_THREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_PATTERN;
+import static com.googlecode.gitst.RepoProperties.PROP_FETCH;
+import static com.googlecode.gitst.RepoProperties.PROP_IGNORE;
+import static com.googlecode.gitst.RepoProperties.PROP_THREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_URL;
+import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,12 +29,30 @@ public class Init {
                 final int port = a.getInt("-p");
                 final String project = a.get("-P");
                 final String view = a.get("-V");
+                final String branch = a.get("-b", "master");
                 final String user = a.get("-u", null);
                 final String password = a.get("-pwd", null);
-                final String branch = a.get("-b", PROP_DEFAULT_BRANCH);
                 final String ca = a.get("-ca", null);
-                final String t = a.get("-t", null);
+                final String ignore = a.get("-i", PROP_DEFAULT_IGNORE);
+                final String up = a.get("-up", PROP_DEFAULT_USER_PATTERN);
+                final String t = a.get("-t", PROP_DEFAULT_THREADS);
                 final File dir = new File(a.get("-d", "."));
+                final StringBuilder sb = new StringBuilder("st::starteam://");
+                final String url;
+
+                if (user != null) {
+                    sb.append(user);
+
+                    if (password != null) {
+                        sb.append(':').append(password);
+                    }
+
+                    sb.append('@');
+                }
+
+                sb.append(host).append(':').append(port).append('/')
+                        .append(project).append('/').append(view);
+                url = sb.toString();
 
                 if (!dir.exists()) {
                     dir.mkdirs();
@@ -52,56 +66,31 @@ public class Init {
                     git.exec("init").exec().waitFor();
                 }
 
-                git.exec("config", "core.ignorecase", "false").exec().waitFor();
+                final RepoProperties props = new RepoProperties(git, "origin");
+                props.setLocalProperty(PROP_URL, url);
+                props.setLocalProperty(PROP_FETCH, "+refs/heads/" + branch
+                        + ":refs/remotes/origin/master");
+                props.setLocalProperty(PROP_THREADS,
+                        String.valueOf(Integer.parseInt(t)));
+                props.setLocalProperty(PROP_USER_PATTERN, up);
+                props.setLocalProperty(PROP_IGNORE, ignore);
 
-                final RepoProperties props = new RepoProperties(dir, null);
-                props.setRepoProperty(PROP_HOST, host);
-                props.setRepoProperty(PROP_PORT, String.valueOf(port));
-                props.setRepoProperty(PROP_PROJECT, project);
-                props.setRepoProperty(PROP_VIEW, view);
-                props.setRepoProperty(PROP_BRANCH, branch);
-                props.setRepoProperty(PROP_IGNORE_FILES,
-                        PROP_DEFAULT_IGNORE_FILES);
-                props.setRepoProperty(PROP_USER_NAME_PATTERN,
-                        PROP_DEFAULT_USER_NAME_PATTERN);
-
-                if (user != null) {
-                    props.setRepoProperty(PROP_USER, user);
-                }
-                if (password != null) {
-                    props.setRepoProperty(PROP_PASSWORD, password);
-                }
-                if (t != null) {
-                    props.setRepoProperty(PROP_MAX_THREADS,
-                            String.valueOf(Integer.parseInt(t)));
-                }
                 if (ca != null) {
-                    if ("auto".equals(ca)) {
-                        props.setRepoProperty(PROP_AUTO_LOCATE_CACHE_AGENT,
-                                "true");
-                    } else {
-                        final int ind = ca.indexOf(':');
-
-                        if (ind == -1) {
-                            props.setRepoProperty(PROP_CACHE_AGENT_HOST, ca);
-                        } else {
-                            props.setRepoProperty(PROP_CACHE_AGENT_HOST,
-                                    ca.substring(0, ind));
-                            props.setRepoProperty(PROP_CACHE_AGENT_PORT,
-                                    ca.substring(ind + 1));
-                        }
-                    }
+                    props.setLocalProperty(PROP_CA, ca);
                 }
 
-                props.saveRepoProperties();
-                props.saveRepoUserMapings();
+                props.saveLocalProperties();
+                git.exec("config", "core.ignorecase", "false").exec().waitFor();
             } catch (final IllegalArgumentException ex) {
                 System.err.println(ex.getMessage());
                 printHelp(System.err);
-            } catch (final InterruptedException ex) {
-                ex.printStackTrace();
-            } catch (final IOException ex) {
+                System.exit(1);
+            } catch (final IOException | InterruptedException ex) {
                 System.err.println(ex.getMessage());
+                System.exit(1);
+            } catch (final ExecutionException ex) {
+                System.err.println(ex.getMessage());
+                System.exit(ex.getExitCode());
             }
         }
     }
@@ -109,6 +98,6 @@ public class Init {
     private static void printHelp(final PrintStream ps) {
         ps.println("Usage: git st init -h <host> -p <port> -P <project> -V <view> "
                 + "[-u <user>] [-b <branch>] [-d <directory>] [-ca <CacheAgent>] "
-                + "[-t <MaxThreads>] [--bare]");
+                + "[-t <MaxThreads>] [-up <userpattern>] [-i <ignore>] [--bare]");
     }
 }

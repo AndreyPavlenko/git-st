@@ -54,6 +54,7 @@ public class FileModify extends FileChange {
 
     @Override
     public String toString() {
-        return (isNewFile() ? "A " : "M ") + getPath();
+        return (isNewFile() ? "A " : "M ") + getPath() + ':'
+                + getFileData().getFile().getDotNotation();
     }
 }

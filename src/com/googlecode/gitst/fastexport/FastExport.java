@@ -1,13 +1,16 @@
 package com.googlecode.gitst.fastexport;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
+import java.util.TreeMap;
 
 import com.googlecode.gitst.Exec;
 import com.googlecode.gitst.ExecutionException;
 import com.googlecode.gitst.Git;
 import com.googlecode.gitst.Logger;
 import com.googlecode.gitst.Logger.ProgressBar;
+import com.googlecode.gitst.Marks;
 import com.googlecode.gitst.Repo;
 import com.googlecode.gitst.StreamReader;
 
@@ -29,8 +32,6 @@ public class FastExport {
 
     public Map<Integer, Commit> loadChanges() throws ExecutionException,
             InterruptedException, IOException, UnsupportedCommandException {
-        _log.echo("Executing git fast-export");
-
         final Repo repo = getRepo();
         final Git git = repo.getGit();
         final String branch = repo.getBranchName();
@@ -38,9 +39,8 @@ public class FastExport {
         final Process proc = exec.getProcess();
 
         try {
-            final ExportStreamReader r = new ExportStreamReader(repo,
-                    new StreamReader(proc.getInputStream()));
-            final Map<Integer, Commit> commits = r.readCommits();
+            final Map<Integer, Commit> commits = loadChanges(proc
+                    .getInputStream());
 
             if (exec.waitFor() != 0) {
                 throw new ExecutionException(
@@ -48,19 +48,28 @@ public class FastExport {
                                 + proc.exitValue(), proc.exitValue());
             }
 
-            return commits;
+            return filter(commits);
         } finally {
             proc.destroy();
         }
+    }
+
+    public Map<Integer, Commit> loadChanges(final InputStream in)
+            throws ExecutionException, InterruptedException, IOException,
+            UnsupportedCommandException {
+        final Repo repo = getRepo();
+        final ExportStreamReader r = new ExportStreamReader(repo,
+                new StreamReader(in));
+        final Map<Integer, Commit> commits = r.readCommits();
+        return commits;
     }
 
     public void submit(final Map<Integer, Commit> commits) throws IOException,
             FastExportException {
         final Repo repo = getRepo();
         final Logger log = repo.getLogger();
-        log.echo("Exporting to StarTeam");
         final ProgressBar b = log.createProgressBar(
-                "Exporting to StarTeam...    ", commits.size());
+                "Exporting to StarTeam", commits.size());
 
         for (final Commit cmt : commits.values()) {
             final Integer fromMark = cmt.getFrom();
@@ -77,6 +86,44 @@ public class FastExport {
 
             if (cmt.exec(repo)) {
                 b.done(1);
+            }
+        }
+    }
+
+    private Map<Integer, Commit> filter(final Map<Integer, Commit> commits)
+            throws InterruptedException, IOException, ExecutionException {
+        final Repo repo = getRepo();
+        final Git git = repo.getGit();
+        final String sha = git.showRef(repo.getRemoteBranchName());
+
+        if (sha == null) {
+            return commits;
+        } else {
+            final Marks marks = git.loadMarks(repo.getBranchName());
+            int mark = 0;
+
+            for (final Map.Entry<Integer, String> e : marks.entrySet()) {
+                if (e.getValue().equals(sha)) {
+                    mark = e.getKey();
+                    break;
+                }
+            }
+            if (mark == 0) {
+                return commits;
+            } else {
+                final Map<Integer, Commit> m = new TreeMap<>();
+
+                for (final Map.Entry<Integer, Commit> e : commits.entrySet()) {
+                    final Integer key = e.getKey();
+
+                    if (key > mark) {
+                        m.put(key, e.getValue());
+                    } else if (_log.isDebugEnabled()) {
+                        _log.debug("Ignoring: " + e.getValue());
+                    }
+                }
+
+                return m;
             }
         }
     }

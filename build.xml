@@ -62,8 +62,7 @@
               file="${jar.file}" />
 
         <copy todir="${assemble.zip.dir}/${project.name}/bin">
-            <fileset dir="${bin.dir}" includes="${project.name}" />
-
+            <fileset dir="${bin.dir}" includes="*" />
             <filterchain>
                 <replacetokens>
                     <token key="JAR_NAME" value="${jar.name}" />
@@ -72,11 +71,9 @@
         </copy>
 
         <chmod perm="a+x"
-               file="${assemble.zip.dir}/${project.name}/bin/${project.name}" />
-
-        <copy todir="${assemble.zip.dir}/${project.name}/config">
-            <fileset dir="${config.dir}" includes="*" />
-        </copy>
+               file="${assemble.zip.dir}/${project.name}/bin/git-st" />
+        <chmod perm="a+x"
+               file="${assemble.zip.dir}/${project.name}/bin/git-remote-st" />
     </target>
 
     <target name="assemble-deb" depends="jar" if="dpkg-deb.available">
@@ -85,8 +82,8 @@
 
         <copy todir="${assemble.deb.dir}/usr/lib/git-core" file="${jar.file}" />
 
-        <copy todir="${assemble.deb.dir}/usr/lib/git-core"
-              file="${bin.dir}/${project.name}">
+        <copy todir="${assemble.deb.dir}/usr/lib/git-core">
+            <fileset dir="${bin.dir}" includes="*" />
             <filterchain>
                 <replacetokens>
                     <token key="JAR_NAME" value="${jar.name}" />
@@ -94,22 +91,19 @@
             </filterchain>
         </copy>
 
+        <chmod perm="a+x" file="${assemble.deb.dir}/usr/lib/git-core/git-st" />
         <chmod perm="a+x"
-               file="${assemble.deb.dir}/usr/lib/git-core/${project.name}" />
-
-        <copy todir="${assemble.deb.dir}/etc/${project.name}">
-            <fileset dir="${config.dir}" includes="*" />
-        </copy>
+               file="${assemble.deb.dir}/usr/lib/git-core/git-remote-st" />
     </target>
 
     <target name="distrib-zip" depends="assemble-zip">
         <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
             <zipfileset dir="${assemble.zip.dir}"
                         includes="**/**"
-                        excludes="${project.name}/bin/${project.name}" />
+                        excludes="${project.name}/bin/*" />
             <zipfileset dir="${assemble.zip.dir}"
                         filemode="755"
-                        includes="${project.name}/bin/${project.name}" />
+                        includes="${project.name}/bin/*" />
         </zip>
     </target>
 
@@ -128,10 +122,6 @@ Section: net
 Homepage: http://code.google.com/p/${project.name}/
 Description: Git frontend for StarTeam.
  Git frontend for StarTeam.
-</echo>
-
-        <echo file="${assemble.deb.dir}/DEBIAN/conffiles">/etc/${project.name}/global.properties
-/etc/${project.name}/users.map
 </echo>
 
         <exec executable="fakeroot">

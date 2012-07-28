@@ -1,0 +1,5 @@
+#!/bin/bash
+
+DIR=$(dirname "${0}")
+CLASS_NAME="Remote"
+. "${DIR}/git-st"
