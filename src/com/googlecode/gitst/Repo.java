@@ -94,10 +94,16 @@ public class Repo implements AutoCloseable {
             final String view = getViewName(url);
             final String ca = props.getProperty(PROP_CA, null);
             final ServerInfo info = new ServerInfo();
-            String userName = url.getUserName();
-            String password = url.getPassword();
+            String userName = props.getProperty(PROP_USER, null);
+            String password = props.getProperty(PROP_PASSWORD, null);
             Server server;
 
+            if (userName == null) {
+                userName = url.getUserName();
+            }
+            if (password == null) {
+                userName = url.getPassword();
+            }
             if (ca != null) {
                 if (Boolean.parseBoolean(ca)) {
                     info.setAutoLocateCacheAgent(true);
