@@ -115,8 +115,8 @@ public class Repo implements AutoCloseable {
             }
             if (getLogger().isInfoEnabled()) {
                 getLogger().info(
-                        "Connecting to " + userName + '@' + host + ':' + port
-                                + '/' + project + '/' + view);
+                        "Connecting to " + host + ':' + port + '/' + project
+                                + '/' + view);
             }
 
             info.setHost(host);

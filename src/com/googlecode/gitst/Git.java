@@ -120,7 +120,7 @@ public class Git {
 
         l.add("fast-export");
         l.add("--no-data");
-        l.add("-C");
+        l.add("-M");
         l.add("--export-marks=" + marks);
 
         if (f.exists()) {

@@ -51,8 +51,7 @@ then
         LIBRARY_PATH="${LIBRARY_PATH}${PS}${i}"
     done
     IFS=${ORIG_IFS}
-elif [ ! -z "${IS_WINDOWS}" ]
-then
+else
     ORIG_IFS=${IFS}
     IFS=${PS}
     for i in ${STARTEAM_JAVA_API}
@@ -82,9 +81,4 @@ then
     shift
 fi
 
-if [ -z "${LIBRARY_PATH}" ]
-then
-    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "${PKG_NAME}.${CLASS_NAME}" $@
-else
-    exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" $@
-fi
+exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" "$@"
