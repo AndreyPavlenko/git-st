@@ -51,6 +51,12 @@ public class Pull {
 
             try (final Repo repo = new Repo(props, log)) {
                 new Pull(repo).pull(dryRun);
+                final String sha = git.showRef(repo.getBranchName());
+
+                if (sha != null) {
+                    git.updateRef(props.getRemoteBranchName(), sha);
+                    git.updateRef("FETCH_HEAD", sha);
+                }
             }
         } catch (final IllegalArgumentException ex) {
             if (!log.isDebugEnabled()) {

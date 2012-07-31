@@ -484,10 +484,14 @@ public class Repo implements AutoCloseable {
         final int ind = path.indexOf('/');
 
         if (ind != -1) {
-            return path.substring(ind + 1);
-        } else {
-            return path;
+            path = path.substring(ind + 1);
+
+            if (path.endsWith("/")) {
+                path = path.substring(0, path.length() - 1);
+            }
         }
+
+        return path;
     }
 
     public static String quotePath(final String path) {
