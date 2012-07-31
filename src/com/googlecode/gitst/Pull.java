@@ -8,7 +8,6 @@ import static com.googlecode.gitst.RepoProperties.PROP_USER;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintStream;
 import java.util.Map;
 
 import com.googlecode.gitst.Logger.Level;
@@ -55,16 +54,16 @@ public class Pull {
             }
         } catch (final IllegalArgumentException ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
 
-            printHelp(System.err);
+            printHelp(log);
             System.exit(1);
         } catch (final ExecutionException ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
@@ -72,7 +71,7 @@ public class Pull {
             System.exit(ex.getExitCode());
         } catch (final Throwable ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
@@ -113,15 +112,17 @@ public class Pull {
             commits = fastImport.loadChanges(startDate, endDate);
         }
 
-        if (!commits.isEmpty()) {
+        if (commits.isEmpty()) {
+            _log.info("No changes found");
             _log.info("");
+        } else if (dryRun) {
+            dryRun(commits);
+        } else {
             if (out == null) {
                 fastImport.submit(commits.values());
             } else {
                 fastImport.submit(commits.values(), out);
             }
-        } else {
-            _log.info("No changes found");
         }
 
         if (_log.isInfoEnabled()) {
@@ -144,8 +145,25 @@ public class Pull {
         }
     }
 
-    private static void printHelp(final PrintStream ps) {
-        ps.println("Usage: git st pull [-u <user>] [-p password] [-d <directory>] "
+    private void dryRun(final Map<CommitId, Commit> commits) {
+        final Repo repo = getRepo();
+
+        for (final Commit cmt : commits.values()) {
+            final CommitId id = cmt.getId();
+            final String committer = repo.toCommitter(id.getUserId());
+            cmt.setCommitter(committer);
+
+            if (_log.isInfoEnabled()) {
+                _log.info(cmt);
+                _log.info("--------------------------------------------------------------------------------");
+            }
+        }
+
+        _log.info("");
+    }
+
+    private static void printHelp(final Logger log) {
+        log.error("Usage: git st pull [-u <user>] [-p password] [-d <directory>] "
                 + "[--dry-run] [-v] [-q]");
     }
 }

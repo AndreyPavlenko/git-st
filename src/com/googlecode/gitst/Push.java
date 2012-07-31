@@ -1,13 +1,13 @@
 package com.googlecode.gitst;
 
 import static com.googlecode.gitst.RepoProperties.META_PROP_ITEM_FILTER;
+import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_PUSH_SHA;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.util.Map;
 
 import com.googlecode.gitst.Logger.Level;
@@ -55,16 +55,16 @@ public class Push {
             }
         } catch (final IllegalArgumentException ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
 
-            printHelp(System.err);
+            printHelp(log);
             System.exit(1);
         } catch (final ExecutionException ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
@@ -72,7 +72,7 @@ public class Push {
             System.exit(ex.getExitCode());
         } catch (final Throwable ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
@@ -112,6 +112,11 @@ public class Push {
 
             if (commits.isEmpty()) {
                 repo.getLogger().info("No changes found");
+            } else if (dryRun) {
+                for (final Commit cmt : commits.values()) {
+                    _log.info(cmt);
+                    _log.info("--------------------------------------------------------------------------------");
+                }
             } else {
                 startDate = repo.getServer().getCurrentTime();
                 exp.submit(commits);
@@ -130,8 +135,9 @@ public class Push {
                 final int user = repo.getServer().getMyUserAccount().getID();
                 filter.add(user, startDate.getDoubleValue(),
                         endDate.getDoubleValue());
-                git.updateRef(repo.getRemoteBranchName(), git.showRef(branch));
                 props.setMetaProperty(META_PROP_ITEM_FILTER, filter.toString());
+                props.setMetaProperty(META_PROP_LAST_PUSH_SHA,
+                        git.showRef(branch));
                 props.saveMeta();
             }
             ok = true;
@@ -142,8 +148,8 @@ public class Push {
         }
     }
 
-    private static void printHelp(final PrintStream ps) {
-        ps.println("Usage: git st pull [-u <user>] [-p password] [-d <directory>] "
+    private static void printHelp(final Logger log) {
+        log.error("Usage: git st pull [-u <user>] [-p password] [-d <directory>] "
                 + "[--dry-run] [-v] [-q]");
     }
 }

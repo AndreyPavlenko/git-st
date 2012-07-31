@@ -1,5 +1,7 @@
 package com.googlecode.gitst.fastexport;
 
+import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_PUSH_SHA;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
@@ -68,8 +70,8 @@ public class FastExport {
             FastExportException {
         final Repo repo = getRepo();
         final Logger log = repo.getLogger();
-        final ProgressBar b = log.createProgressBar(
-                "Exporting to StarTeam", commits.size());
+        final ProgressBar b = log.createProgressBar("Exporting to StarTeam",
+                commits.size());
 
         for (final Commit cmt : commits.values()) {
             final Integer fromMark = cmt.getFrom();
@@ -94,7 +96,8 @@ public class FastExport {
             throws InterruptedException, IOException, ExecutionException {
         final Repo repo = getRepo();
         final Git git = repo.getGit();
-        final String sha = git.showRef(repo.getRemoteBranchName());
+        final String sha = repo.getRepoProperties().getProperty(
+                META_PROP_LAST_PUSH_SHA, null);
 
         if (sha == null) {
             return commits;

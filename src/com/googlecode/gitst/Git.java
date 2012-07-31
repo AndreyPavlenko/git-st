@@ -177,8 +177,9 @@ public class Git {
     }
 
     public String showRef(final String ref) throws InterruptedException,
-            IOException, ExecutionException {
-        final Exec exec = new Exec(getRepoDir(), "git", "show-ref", "-s", ref);
+            IOException {
+        final Exec exec = new Exec(getRepoDir(), "git", "show-ref", "--verify",
+                "-s", ref);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(64);
         exec.setOutStream(baos);
         final int exit = exec.exec().waitFor();

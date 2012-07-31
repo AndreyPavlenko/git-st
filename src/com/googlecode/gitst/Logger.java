@@ -81,6 +81,10 @@ public class Logger {
         }
     }
 
+    public void error(final Object msg) {
+        error(msg, null);
+    }
+
     public synchronized void error(final Object msg, final Throwable ex) {
         if (isErrorEnabled()) {
             if (!_pbar.isEmpty()) {

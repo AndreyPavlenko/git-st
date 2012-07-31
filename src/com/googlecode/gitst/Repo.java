@@ -12,6 +12,7 @@ import static com.googlecode.gitst.RepoProperties.PROP_USER;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
 import static com.starbase.starteam.ServerConfiguration.PROTOCOL_TCP_IP_SOCKETS_XML;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -57,7 +58,6 @@ public class Repo implements AutoCloseable {
     private final RepoProperties _repoProperties;
     private final Logger _logger;
     private final String _branchName;
-    private final String _remoteBranchName;
     private final String _userNamePattern;
     private final Map<String, Folder> _folderCache;
     private final Map<String, com.starbase.starteam.File> _fileCache;
@@ -69,7 +69,6 @@ public class Repo implements AutoCloseable {
 
     public Repo(final RepoProperties repoProperties, final Logger logger) {
         _branchName = repoProperties.getBranchName();
-        _remoteBranchName = repoProperties.getRemoteBranchName();
         _userNamePattern = repoProperties.getProperty(PROP_USER_PATTERN,
                 PROP_DEFAULT_USER_PATTERN);
         _repoProperties = repoProperties;
@@ -220,10 +219,6 @@ public class Repo implements AutoCloseable {
 
     public String getBranchName() {
         return _branchName;
-    }
-
-    public String getRemoteBranchName() {
-        return _remoteBranchName;
     }
 
     public String getUserNamePattern() {
@@ -443,6 +438,16 @@ public class Repo implements AutoCloseable {
 
     public boolean isGitStComment(final String comment) {
         return comment.endsWith(FOOTER_END) && comment.contains(FOOTER_START);
+    }
+
+    public String getPrevImportSha() throws InterruptedException, IOException {
+        final Git git = getGit();
+        final Exec exec = git.exec("log", "--grep=^" + FOOTER_START + "$",
+                "-1", "--pretty=format:%H", getBranchName());
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream(64);
+        exec.setOutStream(baos);
+        exec.exec().waitFor();
+        return (baos.size() == 0) ? null : new String(baos.toByteArray());
     }
 
     public synchronized CheckoutManager createCheckoutManager() {

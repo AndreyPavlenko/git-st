@@ -36,7 +36,7 @@ public class Remote {
             r.exec(remote, System.in, System.out);
         } catch (final ExecutionException ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
@@ -44,7 +44,7 @@ public class Remote {
             System.exit(ex.getExitCode());
         } catch (final Throwable ex) {
             if (!log.isDebugEnabled()) {
-                System.err.println(ex.getMessage());
+                log.error(ex.getMessage());
             } else {
                 log.error(ex.getMessage(), ex);
             }
@@ -149,15 +149,14 @@ public class Remote {
             ExecutionException {
         final Git git = new Git(new File("."));
         final RepoProperties props = new RepoProperties(git, remoteName);
-        final boolean isFirst = props
-                .getMetaProperty(RepoProperties.META_PROP_LAST_PULL_DATE) == null;
+
+        if (props.getMetaProperty(RepoProperties.META_PROP_LAST_PULL_DATE) == null) {
+            Init.setDefaults(props, git, "master");
+        }
+
         final Repo repo = new Repo(props, getLogger());
         final Pull pull = new Pull(repo);
         pull.pull(out, dryRun);
-
-        if (isFirst) {
-            Init.setDefaults(props, git, "master");
-        }
     }
 
     private void push(final String remoteName, final boolean dryRun)

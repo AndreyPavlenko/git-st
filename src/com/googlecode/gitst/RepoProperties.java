@@ -31,6 +31,7 @@ public class RepoProperties {
     public static final String PROP_DEFAULT_IGNORE = "\\.gitignore;.*/\\.gitignore";
     public static final String PROP_DEFAULT_USER_PATTERN = "{0} <{4}.{2}@mycompany.com>";
     public static final String META_PROP_LAST_PULL_DATE = "LastPullDate";
+    public static final String META_PROP_LAST_PUSH_SHA = "LastPushSha";
     public static final String META_PROP_ITEM_FILTER = "ItemFilter";
 
     private final Git _git;
