@@ -38,13 +38,13 @@ else
     exit 1
 fi
 
+CLASSPATH="${JAR_PATH}${PS}${STARTEAM_JAVA_API}"
+
 if [ "${OSTYPE}" = "cygwin" ]
-then
-    JAR_PATH=$(cygpath -m "${JAR_PATH}")
-    
+then 
     ORIG_IFS=${IFS}
     IFS=${PS}
-    for i in ${STARTEAM_JAVA_API}
+    for i in ${CLASSPATH}
     do 
         i=$(cygpath -m "${i}")
         i=$(dirname "${i}")
@@ -54,7 +54,7 @@ then
 else
     ORIG_IFS=${IFS}
     IFS=${PS}
-    for i in ${STARTEAM_JAVA_API}
+    for i in ${CLASSPATH}
     do
         LIBRARY_PATH="${LIBRARY_PATH}${PS}$(dirname "${i}")"
     done
@@ -81,4 +81,4 @@ then
     shift
 fi
 
-exec java -cp "${JAR_PATH}${PS}${STARTEAM_JAVA_API}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" "$@"
+exec java -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" "$@"

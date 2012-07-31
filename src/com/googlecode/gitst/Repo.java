@@ -10,6 +10,7 @@ import static com.googlecode.gitst.RepoProperties.PROP_THREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_URL;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
+import static com.starbase.starteam.ServerConfiguration.PROTOCOL_TCP_IP_SOCKETS_XML;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -35,6 +36,7 @@ import com.starbase.starteam.CheckoutManager;
 import com.starbase.starteam.CheckoutOptions;
 import com.starbase.starteam.Folder;
 import com.starbase.starteam.Item;
+import com.starbase.starteam.LogonException;
 import com.starbase.starteam.Project;
 import com.starbase.starteam.Server;
 import com.starbase.starteam.ServerInfo;
@@ -96,13 +98,13 @@ public class Repo implements AutoCloseable {
             final ServerInfo info = new ServerInfo();
             String userName = props.getProperty(PROP_USER, null);
             String password = props.getProperty(PROP_PASSWORD, null);
-            Server server;
+            final Server server;
 
             if (userName == null) {
                 userName = url.getUserName();
             }
             if (password == null) {
-                userName = url.getPassword();
+                password = url.getPassword();
             }
             if (ca != null) {
                 if (Boolean.parseBoolean(ca)) {
@@ -143,19 +145,48 @@ public class Repo implements AutoCloseable {
                 }
                 cacheLogOnCredentials(server, userName, password);
             } else if (autoLogOn(server) == 0) {
-                if (userName == null) {
-                    userName = props.getOrRequestProperty(PROP_USER,
-                            "Username: ", false);
+                final CredentialHelper h = getGit().getCredentialHelper(
+                        getProtocol(url), host, userName);
+
+                if (h != null) {
+                    final boolean[] approved = new boolean[1];
+                    h.getCredentials(new CredentialCallBack() {
+                        @Override
+                        public boolean approve(final String user,
+                                final String password) {
+                            try {
+                                if (server.logOn(user, password) != 0) {
+                                    cacheLogOnCredentials(server, user,
+                                            password);
+                                    return approved[0] = true;
+                                } else {
+                                    return approved[0] = false;
+                                }
+                            } catch (final LogonException ex) {
+                                return approved[0] = false;
+                            }
+                        }
+                    });
+
+                    if (!approved[0]) {
+                        throw new ConfigurationException("Failed to login to "
+                                + host + ':' + port);
+                    }
+                } else {
+                    if (userName == null) {
+                        userName = props.getOrRequestProperty(PROP_USER,
+                                "Username: ", false);
+                    }
+                    if (password == null) {
+                        password = props.getOrRequestProperty(PROP_PASSWORD,
+                                "Password: ", true);
+                    }
+                    if (server.logOn(userName, password) == 0) {
+                        throw new ConfigurationException("Failed to login to "
+                                + host + ':' + port + " as user " + userName);
+                    }
+                    cacheLogOnCredentials(server, userName, password);
                 }
-                if (password == null) {
-                    password = props.getOrRequestProperty(PROP_PASSWORD,
-                            "Password: ", true);
-                }
-                if (server.logOn(userName, password) == 0) {
-                    throw new ConfigurationException("Failed to login to "
-                            + host + ':' + port + " as user " + userName);
-                }
-                cacheLogOnCredentials(server, userName, password);
             }
 
             _view = findView(findProject(server, project), view);
@@ -599,6 +630,15 @@ public class Repo implements AutoCloseable {
             return new StarTeamURL(url.substring(4));
         } else {
             return new StarTeamURL(url);
+        }
+    }
+
+    private static String getProtocol(final StarTeamURL url) {
+        switch (url.getProtocol()) {
+        case PROTOCOL_TCP_IP_SOCKETS_XML:
+            return "starteam:xml";
+        default:
+            return "starteam";
         }
     }
 

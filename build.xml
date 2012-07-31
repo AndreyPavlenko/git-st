@@ -9,6 +9,7 @@
     <property name="build.classes.dir" location="${build.dir}/classes" />
     <property name="bin.dir" location="${project.dir}/bin" />
     <property name="config.dir" location="${project.dir}/config" />
+    <property name="lib.dir" location="${project.dir}/lib" />
     <property name="jar.name" value="${project.name}.jar" />
     <property name="jar.file" location="${build.dir}/${jar.name}" />
     <property name="assemble.dir" location="${build.dir}/assemble" />
@@ -76,11 +77,46 @@
                file="${assemble.zip.dir}/${project.name}/bin/git-remote-st" />
     </target>
 
-    <target name="assemble-deb" depends="jar" if="dpkg-deb.available">
-        <property name="assemble.deb.dir" location="${assemble.dir}/deb" />
+    <target name="distrib-zip" depends="assemble-zip">
+        <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
+            <zipfileset dir="${assemble.zip.dir}"
+                        includes="**/**"
+                        excludes="${project.name}/bin/*" />
+            <zipfileset dir="${assemble.zip.dir}"
+                        filemode="755"
+                        includes="${project.name}/bin/*" />
+        </zip>
+    </target>
+
+    <target name="distrib-deb" if="dpkg-deb.available">
+        <antcall target="-distrib-deb">
+            <param name="arch" value="amd64" />
+        </antcall>
+        <antcall target="-distrib-deb">
+            <param name="arch" value="all" />
+        </antcall>
+    </target>
+
+    <target name="distrib" depends="distrib-zip, distrib-deb" />
+
+    <target name="clean">
+        <delete dir="${build.dir}" />
+        <delete dir="${distrib.dir}" />
+    </target>
+
+    <target name="-distrib-deb">
+        <condition property="a" value="_${arch}" else="">
+            <not>
+                <equals arg1="${arch}" arg2="all" />
+            </not>
+        </condition>
+        <property name="assemble.deb.dir" location="${assemble.dir}/deb${a}" />
         <delete dir="${assemble.deb.dir}" />
 
         <copy todir="${assemble.deb.dir}/usr/lib/git-core" file="${jar.file}" />
+        <copy tofile="${assemble.deb.dir}/usr/lib/git-core/libgit-st.so"
+              file="${lib.dir}/libgit-st${a}.so"
+              failonerror="false" />
 
         <copy todir="${assemble.deb.dir}/usr/lib/git-core">
             <fileset dir="${bin.dir}" includes="*" />
@@ -94,20 +130,7 @@
         <chmod perm="a+x" file="${assemble.deb.dir}/usr/lib/git-core/git-st" />
         <chmod perm="a+x"
                file="${assemble.deb.dir}/usr/lib/git-core/git-remote-st" />
-    </target>
 
-    <target name="distrib-zip" depends="assemble-zip">
-        <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
-            <zipfileset dir="${assemble.zip.dir}"
-                        includes="**/**"
-                        excludes="${project.name}/bin/*" />
-            <zipfileset dir="${assemble.zip.dir}"
-                        filemode="755"
-                        includes="${project.name}/bin/*" />
-        </zip>
-    </target>
-
-    <target name="distrib-deb" depends="assemble-deb">
         <exec executable="sh" outputproperty="size">
             <arg value="-c" />
             <arg value="du -s ${assemble.deb.dir} | awk '{print $1}'" />
@@ -115,7 +138,7 @@
 
         <echo file="${assemble.deb.dir}/DEBIAN/control">Package: ${project.name}
 Version: ${project.version}
-Architecture: all
+Architecture: ${arch}
 Maintainer: Andrey Pavlenko
 Installed-Size: ${size}
 Section: net
@@ -128,14 +151,8 @@ Description: Git frontend for StarTeam.
             <arg value="dpkg-deb" />
             <arg value="-b" />
             <arg file="${assemble.deb.dir}" />
-            <arg value="${distrib.dir}/${project.name}_${project.version}.deb" />
+            <arg value="${distrib.dir}/${project.name}_${project.version}${a}.deb" />
         </exec>
     </target>
 
-    <target name="distrib" depends="distrib-zip, distrib-deb" />
-
-    <target name="clean">
-        <delete dir="${build.dir}" />
-        <delete dir="${distrib.dir}" />
-    </target>
 </project>

@@ -110,6 +110,7 @@ public class Init {
 
         props.saveLocalProperties();
         git.exec("config", "core.ignorecase", "false").exec().waitFor();
+        git.exec("config", "credential.helper", "cache").exec().waitFor();
     }
 
     private static void printHelp(final PrintStream ps) {

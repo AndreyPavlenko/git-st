@@ -17,10 +17,24 @@ import java.util.List;
  * @author Andrey Pavlenko
  */
 public class Git {
+    private static final boolean NATIVE_LIB_LOADED;
     private static final String FILE_MARKS = ".marks";
     private final File _gitDir;
     private final File _repoDir;
     private final String _executable;
+
+    static {
+        boolean loaded;
+
+        try {
+            System.loadLibrary("git-st");
+            loaded = true;
+        } catch (final UnsatisfiedLinkError ex) {
+            loaded = false;
+        }
+
+        NATIVE_LIB_LOADED = loaded;
+    }
 
     public Git(final File repoDir) {
         this(repoDir, null);
@@ -222,6 +236,36 @@ public class Git {
             return dir.isDirectory() ? dir : repoDir;
         } else {
             return new File(d);
+        }
+    }
+
+    public CredentialHelper getCredentialHelper(final String protocol,
+            final String host, final String user) {
+        if (NATIVE_LIB_LOADED) {
+            return new CHelper(protocol, host, user);
+        }
+
+        return null;
+    }
+
+    private static native String[] getCredentials(CredentialCallBack cb,
+            String protocol, String host, final String user);
+
+    private static final class CHelper implements CredentialHelper {
+        private final String _protocol;
+        private final String _host;
+        private final String _user;
+
+        public CHelper(final String protocol, final String host,
+                final String user) {
+            _protocol = protocol;
+            _host = host;
+            _user = user;
+        }
+
+        @Override
+        public void getCredentials(final CredentialCallBack cb) {
+            Git.getCredentials(cb, _protocol, _host, _user);
         }
     }
 }
