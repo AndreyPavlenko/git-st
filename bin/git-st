@@ -47,10 +47,12 @@ then
     for i in ${CLASSPATH}
     do 
         i=$(cygpath -m "${i}")
-        i=$(dirname "${i}")
-        LIBRARY_PATH="${LIBRARY_PATH}${PS}${i}"
+        d=$(dirname "${i}")
+        LIBRARY_PATH="${LIBRARY_PATH}${PS}${d}"
+        tmpCP="${tmpCP}${PS}${i}"
     done
     IFS=${ORIG_IFS}
+    CLASSPATH="${tmpCP}"
 else
     ORIG_IFS=${IFS}
     IFS=${PS}
