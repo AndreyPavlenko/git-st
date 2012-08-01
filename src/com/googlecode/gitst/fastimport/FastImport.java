@@ -217,10 +217,11 @@ public class FastImport {
 
                 @Override
                 public void run() {
+                    final Item[] history = f.getHistory();
                     final ItemList list = new ItemList();
 
-                    for (final Item h : f.getHistory()) {
-                        list.addItem(h);
+                    for (int i = history.length - 1; i >= 0; i--) {
+                        list.addItem(history[i]);
                     }
 
                     File prev = null;
