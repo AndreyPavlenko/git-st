@@ -39,11 +39,14 @@ public class Logger {
 
     public static Logger createConsoleLogger(final Level level) {
         final Console c = System.console();
+        final String env = System.getenv("GITST_PB");
+        final boolean enable = "true".equalsIgnoreCase(env);
+        final boolean disable = "false".equalsIgnoreCase(env);
 
         if (c != null) {
-            return new Logger(c.writer(), true, level);
+            return new Logger(c.writer(), !disable, level);
         } else {
-            return new Logger(System.out, false, level);
+            return new Logger(System.out, enable, level);
         }
     }
 
@@ -85,40 +88,43 @@ public class Logger {
         error(msg, null);
     }
 
-    public synchronized void error(final Object msg, final Throwable ex) {
+    public void error(final Object msg, final Throwable ex) {
         if (isErrorEnabled()) {
-            if (!_pbar.isEmpty()) {
-                clearPogress();
-                _logWriter.println(msg);
+            synchronized (this) {
+                if (!_pbar.isEmpty()) {
+                    clearPogress();
+                    _logWriter.println(msg);
 
-                if (ex != null) {
-                    ex.printStackTrace(_logWriter);
+                    if (ex != null) {
+                        ex.printStackTrace(_logWriter);
+                    }
+
+                    printProgress();
+                } else {
+                    _logWriter.println(msg);
+
+                    if (ex != null) {
+                        ex.printStackTrace(_logWriter);
+                    }
                 }
 
-                printProgress();
-            } else {
-                _logWriter.println(msg);
-
-                if (ex != null) {
-                    ex.printStackTrace(_logWriter);
-                }
+                _logWriter.flush();
             }
-
-            _logWriter.flush();
         }
     }
 
-    public synchronized ProgressBar createProgressBar(final String message,
-            final int total) {
+    public ProgressBar createProgressBar(final Object message, final int total) {
         if (!isProgressBarSupported()) {
             return new DummyProgressBar();
         }
 
-        final PBar pbar = new PBar(message, total);
-        clearPogress();
-        _pbar.add(pbar);
-        printProgress();
-        return pbar;
+        synchronized (this) {
+            final PBar pbar = new PBar(message, total);
+            clearPogress();
+            _pbar.add(pbar);
+            printProgress();
+            return pbar;
+        }
     }
 
     public boolean isDebugEnabled() {
@@ -203,13 +209,13 @@ public class Logger {
     }
 
     public class PBar implements ProgressBar {
-        private final String _message;
+        private final Object _message;
         private final int _total;
         private int _done;
         private boolean _closed;
         private int _lastMessageLen;
 
-        public PBar(final String message, final int total) {
+        public PBar(final Object message, final int total) {
             _message = message;
             _total = total;
         }
@@ -217,16 +223,14 @@ public class Logger {
         @Override
         public void done(final int count) {
             synchronized (Logger.this) {
-                if (_closed) {
-                    throw new IllegalStateException(
-                            "ProgressBar is already closed");
-                }
-                _done += count;
-                clearPogress();
-                printProgress();
+                if (!_closed) {
+                    _done += count;
+                    clearPogress();
+                    printProgress();
 
-                if (_done >= _total) {
-                    close();
+                    if (_done >= _total) {
+                        close();
+                    }
                 }
             }
         }
@@ -258,8 +262,9 @@ public class Logger {
         }
 
         private String createMessage() {
-            return '[' + _message + ": " + ((_done * 100) / _total) + "% ("
-                    + _done + '/' + _total + ")]";
+            return '[' + String.valueOf(_message) + ": "
+                    + ((_done * 100) / _total) + "% (" + _done + '/' + _total
+                    + ")]";
         }
     }
 }

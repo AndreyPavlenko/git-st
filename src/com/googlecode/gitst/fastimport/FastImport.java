@@ -77,9 +77,13 @@ public class FastImport {
         final Folder rootFolder = v.getRootFolder();
         rootFolder.populateNow("File", FILE_PROPS, -1);
         rootFolder.populateNow("Folder", FOLDER_PROPS, -1);
-        load(filter, commits, endDate, rootFolder, threadPool);
+        final ProgressBar pb = _log.createProgressBar("Loading history",
+                (int) rootFolder.countItems(v.getServer().typeForName("File"),
+                        -1));
+        load(filter, commits, endDate, rootFolder, threadPool, pb);
         threadPool.shutdown();
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        pb.complete();
         return commits;
     }
 
@@ -169,6 +173,7 @@ public class FastImport {
         _log.info("");
         threadPool.shutdown();
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        b.complete();
     }
 
     private void checkout(final Collection<Commit> commits,
@@ -195,7 +200,7 @@ public class FastImport {
     private void load(final ItemFilter filter,
             final ConcurrentMap<CommitId, Commit> commits,
             final OLEDate endDate, final Folder folder,
-            final ExecutorService threadPool) {
+            final ExecutorService threadPool, final ProgressBar pb) {
         final ItemList files = folder.getList("File");
         final ItemList folders = folder.getList("Folder");
 
@@ -233,13 +238,15 @@ public class FastImport {
                         load(filter, commits, h, prev, date, threadPool);
                         prev = h;
                     }
+
+                    pb.done(1);
                 }
             });
         }
 
         for (final Enumeration<?> en = folders.elements(); en.hasMoreElements();) {
             load(filter, commits, endDate, (Folder) en.nextElement(),
-                    threadPool);
+                    threadPool, pb);
         }
     }
 

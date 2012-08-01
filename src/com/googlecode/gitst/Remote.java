@@ -29,7 +29,8 @@ public class Remote {
             System.exit(1);
         }
         final String remote = args[0];
-        final Logger log = new Logger(System.err, false);
+        final Logger log = new Logger(System.err, Logger.createConsoleLogger(
+                Level.INFO).isProgressBarSupported());
         final Remote r = new Remote(log);
 
         try {
@@ -57,9 +58,11 @@ public class Remote {
     public void exec(final String remoteName, final InputStream in,
             final OutputStream out) throws IOException, InterruptedException,
             ExecutionException, FastExportException {
-        boolean dryRun = false;
+        final Git git = new Git(new File("."));
+        final RepoProperties props = new RepoProperties(git, remoteName);
         final PrintWriter w = new PrintWriter(out, true);
         final StreamReader r = new StreamReader(in);
+        boolean dryRun = false;
         String line = r.readLine();
 
         if ("capabilities".equals(line)) {
@@ -75,7 +78,7 @@ public class Remote {
                     continue;
                 case "list":
                 case "list for-push":
-                    w.print("? refs/heads/master\n\n");
+                    w.print("? " + props.getBranchName() + "\n\n");
                     w.flush();
                     break;
                 case "option":
@@ -123,11 +126,11 @@ public class Remote {
                             continue read;
                         }
                     } else if (line.startsWith("import")) {
-                        pull(remoteName, out, dryRun);
+                        pull(props, out, dryRun);
                         w.print("done\n");
                         w.flush();
                     } else if (line.startsWith("push")) {
-                        push(remoteName, dryRun);
+                        push(props, dryRun);
                         w.print("ok "
                                 + line.substring(line.lastIndexOf(':') + 1)
                                 + "\n\n");
@@ -144,14 +147,12 @@ public class Remote {
         }
     }
 
-    private void pull(final String remoteName, final OutputStream out,
+    private void pull(final RepoProperties props, final OutputStream out,
             final boolean dryRun) throws IOException, InterruptedException,
             ExecutionException {
-        final Git git = new Git(new File("."));
-        final RepoProperties props = new RepoProperties(git, remoteName);
 
         if (props.getMetaProperty(RepoProperties.META_PROP_LAST_PULL_DATE) == null) {
-            Init.setDefaults(props, git, "master");
+            Init.setDefaults(props, props.getGit(), "master");
         }
 
         final Repo repo = new Repo(props, getLogger());
@@ -159,11 +160,9 @@ public class Remote {
         pull.pull(out, dryRun);
     }
 
-    private void push(final String remoteName, final boolean dryRun)
+    private void push(final RepoProperties props, final boolean dryRun)
             throws IOException, InterruptedException, ExecutionException,
             FastExportException {
-        final Git git = new Git(new File("."));
-        final RepoProperties props = new RepoProperties(git, remoteName);
         final Repo repo = new Repo(props, getLogger());
         final Push push = new Push(repo);
         push.push(dryRun);
