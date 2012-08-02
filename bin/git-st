@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 DIR=${DIR:-$(dirname "${0}")}
 JAR_NAME="@JAR_NAME@"
