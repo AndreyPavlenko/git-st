@@ -75,6 +75,8 @@
                file="${assemble.zip.dir}/${project.name}/bin/git-st" />
         <chmod perm="a+x"
                file="${assemble.zip.dir}/${project.name}/bin/git-remote-st" />
+        <chmod perm="a+x"
+               file="${assemble.zip.dir}/${project.name}/bin/git-remote-starteam" />
     </target>
 
     <target name="distrib-zip" depends="assemble-zip">
@@ -130,6 +132,8 @@
         <chmod perm="a+x" file="${assemble.deb.dir}/usr/lib/git-core/git-st" />
         <chmod perm="a+x"
                file="${assemble.deb.dir}/usr/lib/git-core/git-remote-st" />
+        <chmod perm="a+x"
+               file="${assemble.deb.dir}/usr/lib/git-core/git-remote-starteam" />
 
         <exec executable="sh" outputproperty="size">
             <arg value="-c" />
