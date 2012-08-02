@@ -29,8 +29,8 @@ public class Remote {
             System.exit(1);
         }
         final String remote = args[0];
-        final Logger log = new Logger(System.err, Logger.createConsoleLogger(
-                Level.INFO).isProgressBarSupported());
+        final Logger log = new Logger(System.err,
+                !"false".equalsIgnoreCase(System.getenv("GITST_PB")));
         final Remote r = new Remote(log);
 
         try {

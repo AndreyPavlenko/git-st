@@ -523,17 +523,19 @@ public class FastImport {
                     for (final Iterator<FileData> it = data.iterator(); it
                             .hasNext();) {
                         final FileData d = it.next();
-                        d.setCheckout(wf);
 
                         if (it.hasNext()) {
                             try {
                                 final java.io.File newFile = _repo
                                         .createTempFile(d.getPath());
                                 Repo.copyFile(wf, newFile);
+                                d.setCheckout(wf);
                                 wf = newFile;
                             } catch (final IOException ex) {
                                 throw new RuntimeException(ex);
                             }
+                        } else {
+                            d.setCheckout(wf);
                         }
                     }
                 } else {
