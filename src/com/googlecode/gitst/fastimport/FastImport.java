@@ -513,6 +513,13 @@ public class FastImport {
         @Override
         public void onNotifyProgress(final CheckoutEvent e) {
             if (e.isFinished()) {
+                if (!e.isSuccessful()) {
+                    _repo.getLogger().error(
+                            "Failed to checkout file: "
+                                    + Repo.getPath(e.getCurrentFile()));
+                    return;
+                }
+
                 _pbar.done(1);
                 final File f = e.getCurrentFile();
                 final RemoteFile id = new RemoteFile(f);

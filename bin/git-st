@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 DIR=${DIR:-$(dirname "${0}")}
 JAR_NAME="@JAR_NAME@"
@@ -76,11 +76,24 @@ then
             CLASS_NAME="Push"
             ;;
         *)
-            echo "Usage: git st <init|pull|push>" >&2
+            echo "Usage: git st <init|pull|push> [-J<JavaArg>]*" >&2
             exit 1
             ;;
     esac
     shift
 fi
 
-exec java -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${PKG_NAME}.${CLASS_NAME}" "$@"
+declare -a ARGS
+declare -a JVM_ARGS
+
+for i in "$@"
+do
+    if [[ $i = -J* ]]
+    then
+        JVM_ARGS[${#JVM_ARGS[@]}]="${i:2}"
+    else
+        ARGS[${#ARGS[@]}]="${i}"
+    fi
+done
+
+exec java -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
