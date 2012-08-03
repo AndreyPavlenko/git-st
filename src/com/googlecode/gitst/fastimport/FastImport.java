@@ -38,6 +38,7 @@ import com.starbase.starteam.Item;
 import com.starbase.starteam.ItemList;
 import com.starbase.starteam.ItemUpdateEvent;
 import com.starbase.starteam.ItemUpdateListener;
+import com.starbase.starteam.Server;
 import com.starbase.starteam.View;
 import com.starbase.starteam.ViewConfiguration;
 import com.starbase.starteam.ViewConfigurationDiffer;
@@ -92,6 +93,7 @@ public class FastImport {
         final Repo repo = getRepo();
         final RepoProperties props = repo.getRepoProperties();
         final View v = repo.connect();
+        final Server s = v.getServer();
         final ItemFilter filter = new ItemFilter(
                 props.getMetaProperty(META_PROP_ITEM_FILTER));
         final ViewListener listener = new ViewListener(filter);
@@ -101,6 +103,8 @@ public class FastImport {
             _log.info("Requesting changes since " + startDate);
         }
 
+        diff.addRequiredPropertyNames(s.typeForName("File"), FILE_PROPS);
+        diff.addRequiredPropertyNames(s.typeForName("Folder"), FOLDER_PROPS);
         diff.addFolderUpdateListener(listener);
         diff.addItemUpdateListener(listener,
                 repo.getServer().typeForName("File"));
