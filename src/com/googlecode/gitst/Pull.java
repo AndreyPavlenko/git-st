@@ -120,10 +120,10 @@ public class Pull {
 
         if (commits.isEmpty()) {
             _log.info("No changes found");
-            _log.info("");
         } else if (dryRun) {
             dryRun(commits);
         } else {
+            _log.info("");
             if (out == null) {
                 fastImport.submit(commits.values());
             } else {
