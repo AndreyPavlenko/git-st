@@ -112,7 +112,6 @@ public class FastImport {
                 repo.getServer().typeForName("File"));
         diff.compare(ViewConfiguration.createFromTime(startDate),
                 ViewConfiguration.createFromTime(endDate));
-        iListener.getFolders().populateNow(new String[] { "Name" });
 
         for (final IntermediateListener.EventWrapper w : iListener.getEvents()) {
             switch (w._type) {
@@ -387,15 +386,14 @@ public class FastImport {
         private final List<Folder> _folders = new ArrayList<>();
         private final List<EventWrapper> _events = new ArrayList<>();
 
-        public ItemList getFolders() {
-            final ItemList list = new ItemList();
-            for (final Folder f : _folders) {
-                list.addItem(f);
-            }
-            return list;
-        }
-
         public List<EventWrapper> getEvents() {
+            if (!_folders.isEmpty()) {
+                final ItemList list = new ItemList();
+                for (final Folder f : _folders) {
+                    list.addItem(f);
+                }
+                list.populateNow(new String[] { "Name" });
+            }
             return _events;
         }
 
@@ -491,7 +489,6 @@ public class FastImport {
     private final class ViewListener implements FolderUpdateListener,
             ItemUpdateListener {
         private final ConcurrentMap<CommitId, Commit> _commits = new ConcurrentSkipListMap<>();
-        private final ExecutorService _threadPool = getRepo().getThreadPool();
         private final ItemFilter _filter;
 
         public ViewListener(final ItemFilter filter) {
@@ -499,8 +496,6 @@ public class FastImport {
         }
 
         public Map<CommitId, Commit> getCommits() throws InterruptedException {
-            _threadPool.shutdown();
-            _threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
             return _commits;
         }
 
