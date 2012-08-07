@@ -32,14 +32,14 @@ public class Pull {
         final Args a = new Args(args);
         final String user = a.get("-u", null);
         final String password = a.get("-p", null);
-        final File dir = new File(a.get("-d", "."));
+        final String dir = a.get("-d", null);
         final boolean dryRun = a.hasOption("--dry-run");
         final Level level = a.hasOption("-v") ? Level.DEBUG : a.hasOption("-q")
                 ? Level.ERROR : Level.INFO;
         final Logger log = Logger.createConsoleLogger(level);
 
         try {
-            final Git git = new Git(dir);
+            final Git git = (dir == null) ? new Git() : new Git(new File(dir));
             final RepoProperties props = new RepoProperties(git, "origin");
 
             if (user != null) {
@@ -142,11 +142,6 @@ public class Pull {
             _log.info("Total time: "
                     + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
                             + (time % 60) + "s"));
-        }
-
-        if (!dryRun && (out == null) && !commits.isEmpty() && !repo.isBare()) {
-            _log.info("Executing git reset --merge");
-            repo.getGit().exec("reset", "--merge").exec().waitFor();
         }
 
         if (!dryRun) {

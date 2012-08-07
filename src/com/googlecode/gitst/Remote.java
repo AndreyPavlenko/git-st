@@ -1,6 +1,5 @@
 package com.googlecode.gitst;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -58,7 +57,7 @@ public class Remote {
     public void exec(final String remoteName, final InputStream in,
             final OutputStream out) throws IOException, InterruptedException,
             ExecutionException, FastExportException {
-        final Git git = new Git(new File("."));
+        final Git git = new Git();
         final RepoProperties props = new RepoProperties(git, remoteName);
         final PrintWriter w = new PrintWriter(out, true);
         final StreamReader r = new StreamReader(in);

@@ -536,11 +536,6 @@ public class Repo implements AutoCloseable {
         }
     }
 
-    public boolean isBare() {
-        final RepoProperties props = getRepoProperties();
-        return props.getGitstDir().getParentFile().equals(props.getRepoDir());
-    }
-
     public String toCommitter(final int userId) {
         String name = getRepoProperties().getUserMapping(userId);
 

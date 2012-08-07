@@ -36,31 +36,58 @@ public class Git {
         NATIVE_LIB_LOADED = loaded;
     }
 
-    public Git(final File repoDir) {
+    public Git() throws InterruptedException, IOException, ExecutionException {
+        this(null);
+    }
+
+    public Git(final File repoDir) throws InterruptedException, IOException,
+            ExecutionException {
         this(repoDir, null);
     }
 
-    public Git(final File repoDir, final File gitDir) {
+    public Git(final File repoDir, final File gitDir)
+            throws InterruptedException, IOException, ExecutionException {
         this(repoDir, gitDir, null);
     }
 
-    public Git(final File repoDir, File gitDir, final String executable) {
-        if (!repoDir.isDirectory()) {
-            throw new ConfigurationException(
-                    "Repository directory does not exist: "
-                            + repoDir.getAbsolutePath());
+    public Git(File repoDir, File gitDir, String executable)
+            throws InterruptedException, IOException, ExecutionException {
+        if (executable == null) {
+            executable = "git";
         }
         if (gitDir == null) {
-            gitDir = findGitDir(repoDir);
+            final Exec exec = new Exec(repoDir == null ? new File(".")
+                    : repoDir, executable, "rev-parse", "--git-dir");
+            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            exec.setOutStream(baos);
+            final int exit = exec.exec().waitFor();
+
+            if (exit != 0) {
+                throw new ExecutionException(executable
+                        + " rev-parse --git-dir failed", exit);
+            }
+
+            gitDir = new File(baos.toString("UTF-8"));
         }
-        if (!gitDir.isDirectory()) {
-            throw new ConfigurationException("Git directory does not exist: "
-                    + gitDir.getAbsolutePath());
+        if (repoDir == null) {
+            final Exec exec = new Exec(new File("."), executable, "config",
+                    "core.bare");
+            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            exec.setOutStream(baos);
+            final int exit = exec.exec().waitFor();
+
+            if (exit != 0) {
+                throw new ExecutionException(executable
+                        + " config core.bare failed", exit);
+            }
+
+            repoDir = Boolean.parseBoolean(baos.toString("UTF-8")) ? gitDir
+                    : gitDir.getParentFile();
         }
 
         _gitDir = gitDir;
         _repoDir = repoDir;
-        _executable = executable == null ? "git" : executable;
+        _executable = executable;
     }
 
     public File getRepoDir() {
@@ -227,17 +254,6 @@ public class Git {
         final Marks marks = new Marks();
         final File f = getMarksFile(ref);
         return f.isFile() ? marks.load(f) : marks;
-    }
-
-    private static File findGitDir(final File repoDir) {
-        final String d = System.getenv("GIT_DIR");
-
-        if (d == null) {
-            final File dir = new File(repoDir, ".git");
-            return dir.isDirectory() ? dir : repoDir;
-        } else {
-            return new File(d);
-        }
     }
 
     public CredentialHelper getCredentialHelper(final String protocol,
