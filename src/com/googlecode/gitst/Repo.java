@@ -45,6 +45,7 @@ import com.starbase.starteam.StarTeamFinder;
 import com.starbase.starteam.StarTeamURL;
 import com.starbase.starteam.User;
 import com.starbase.starteam.View;
+import com.starbase.starteam.vts.comm.NetMonitor;
 
 /**
  * @author Andrey Pavlenko
@@ -98,6 +99,13 @@ public class Repo implements AutoCloseable {
             String userName = props.getProperty(PROP_USER, null);
             String password = props.getProperty(PROP_PASSWORD, null);
             final Server server;
+
+            if (getLogger().isDebugEnabled()) {
+                final java.io.File dir = new File(props.getGitstDir(),
+                        getBranchName());
+                dir.mkdirs();
+                NetMonitor.onFile(new java.io.File(dir, "NetMonitor.log"));
+            }
 
             if (userName == null) {
                 userName = url.getUserName();

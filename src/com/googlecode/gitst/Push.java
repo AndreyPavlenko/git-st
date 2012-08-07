@@ -149,7 +149,7 @@ public class Push {
     }
 
     private static void printHelp(final Logger log) {
-        log.error("Usage: git st pull [-u <user>] [-p password] [-d <directory>] "
+        log.error("Usage: git st push [-u <user>] [-p password] [-d <directory>] "
                 + "[--dry-run] [-v] [-q]");
     }
 }
