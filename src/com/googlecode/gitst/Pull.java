@@ -51,11 +51,14 @@ public class Pull {
 
             try (final Repo repo = new Repo(props, log)) {
                 new Pull(repo).pull(dryRun);
-                final String sha = git.showRef(repo.getBranchName());
 
-                if (sha != null) {
-                    git.updateRef(props.getRemoteBranchName(), sha);
-                    git.updateRef("FETCH_HEAD", sha);
+                if (!dryRun) {
+                    final String sha = git.showRef(repo.getBranchName());
+
+                    if (sha != null) {
+                        git.updateRef(props.getRemoteBranchName(), sha);
+                        git.updateRef("FETCH_HEAD", sha);
+                    }
                 }
             }
         } catch (final IllegalArgumentException ex) {
@@ -121,6 +124,9 @@ public class Pull {
         if (commits.isEmpty()) {
             _log.info("No changes found");
         } else if (dryRun) {
+            _log.info("");
+            _log.info("Executing git fast-import");
+            _log.info("");
             dryRun(commits);
         } else {
             _log.info("");

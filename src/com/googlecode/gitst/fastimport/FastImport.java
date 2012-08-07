@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.EventObject;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -96,7 +97,8 @@ public class FastImport {
         final Server s = v.getServer();
         final ItemFilter filter = new ItemFilter(
                 props.getMetaProperty(META_PROP_ITEM_FILTER));
-        final ViewListener listener = new ViewListener(filter);
+        final IntermediateListener iListener = new IntermediateListener();
+        final ViewListener vListener = new ViewListener(filter);
         final ViewConfigurationDiffer diff = new ViewConfigurationDiffer(v);
 
         if (_log.isInfoEnabled()) {
@@ -105,12 +107,42 @@ public class FastImport {
 
         diff.addRequiredPropertyNames(s.typeForName("File"), FILE_PROPS);
         diff.addRequiredPropertyNames(s.typeForName("Folder"), FOLDER_PROPS);
-        diff.addFolderUpdateListener(listener);
-        diff.addItemUpdateListener(listener,
+        diff.addFolderUpdateListener(iListener);
+        diff.addItemUpdateListener(iListener,
                 repo.getServer().typeForName("File"));
         diff.compare(ViewConfiguration.createFromTime(startDate),
                 ViewConfiguration.createFromTime(endDate));
-        return listener.getCommits();
+        iListener.getFolders().populateNow(new String[] { "Name" });
+
+        for (final IntermediateListener.EventWrapper w : iListener.getEvents()) {
+            switch (w._type) {
+            case ITEM_ADDED:
+                vListener.itemAdded((ItemUpdateEvent) w._event);
+                break;
+            case ITEM_MOVED:
+                vListener.itemMoved((ItemUpdateEvent) w._event);
+                break;
+            case ITEM_CHANGED:
+                vListener.itemChanged((ItemUpdateEvent) w._event);
+                break;
+            case ITEM_REMOVED:
+                vListener.itemRemoved((ItemUpdateEvent) w._event);
+                break;
+            case FOLDER_ADDED:
+                vListener.folderAdded((FolderUpdateEvent) w._event);
+                break;
+            case FOLDER_MOVED:
+                vListener.folderMoved((FolderUpdateEvent) w._event);
+                break;
+            case FOLDER_REMOVED:
+                vListener.folderRemoved((FolderUpdateEvent) w._event);
+                break;
+            default:
+                throw new UnsupportedOperationException(w._type.name());
+            }
+        }
+
+        return vListener.getCommits();
     }
 
     public void submit(final Collection<Commit> commits) throws IOException,
@@ -350,6 +382,112 @@ public class FastImport {
         }
     }
 
+    private static final class IntermediateListener implements
+            FolderUpdateListener, ItemUpdateListener {
+        private final List<Folder> _folders = new ArrayList<>();
+        private final List<EventWrapper> _events = new ArrayList<>();
+
+        public ItemList getFolders() {
+            final ItemList list = new ItemList();
+            for (final Folder f : _folders) {
+                list.addItem(f);
+            }
+            return list;
+        }
+
+        public List<EventWrapper> getEvents() {
+            return _events;
+        }
+
+        @Override
+        public void itemAdded(final ItemUpdateEvent e) {
+            final Item dest = e.getNewItem();
+            addFolders(dest);
+            _events.add(new EventWrapper(Type.ITEM_ADDED, e));
+        }
+
+        @Override
+        public void itemMoved(final ItemUpdateEvent e) {
+            final Item src = e.getOldItem();
+            final Item dest = e.getNewItem();
+            addFolders(src);
+            addFolders(dest);
+            _events.add(new EventWrapper(Type.ITEM_MOVED, e));
+        }
+
+        @Override
+        public void itemChanged(final ItemUpdateEvent e) {
+            final Item src = e.getOldItem();
+            final Item dest = e.getNewItem();
+            addFolders(src);
+            addFolders(dest);
+            _events.add(new EventWrapper(Type.ITEM_CHANGED, e));
+        }
+
+        @Override
+        public void itemRemoved(final ItemUpdateEvent e) {
+            final Item src = e.getOldItem();
+            addFolders(src);
+            _events.add(new EventWrapper(Type.ITEM_REMOVED, e));
+        }
+
+        @Override
+        public void folderAdded(final FolderUpdateEvent e) {
+            final Folder dest = e.getNewFolder();
+            addFolders(dest);
+            _events.add(new EventWrapper(Type.FOLDER_ADDED, e));
+        }
+
+        @Override
+        public void folderMoved(final FolderUpdateEvent e) {
+            final Item src = e.getOldFolder();
+            final Item dest = e.getNewFolder();
+            addFolders(src);
+            addFolders(dest);
+            _events.add(new EventWrapper(Type.FOLDER_MOVED, e));
+        }
+
+        @Override
+        public void folderRemoved(final FolderUpdateEvent e) {
+            final Item src = e.getOldFolder();
+            addFolders(src);
+            _events.add(new EventWrapper(Type.FOLDER_REMOVED, e));
+        }
+
+        @Override
+        public void folderChanged(final FolderUpdateEvent e) {
+            // Not supported
+        }
+
+        private void addFolders(final Item i) {
+            for (Folder f = i.getParentFolder(); f != null; f = f
+                    .getParentFolder()) {
+                _folders.add(f);
+            }
+        }
+
+        static enum Type {
+            ITEM_ADDED,
+            ITEM_MOVED,
+            ITEM_CHANGED,
+            ITEM_REMOVED,
+            FOLDER_ADDED,
+            FOLDER_MOVED,
+            FOLDER_CHANGED,
+            FOLDER_REMOVED;
+        }
+
+        static final class EventWrapper {
+            final Type _type;
+            final EventObject _event;
+
+            public EventWrapper(final Type type, final EventObject event) {
+                _type = type;
+                _event = event;
+            }
+        }
+    }
+
     private final class ViewListener implements FolderUpdateListener,
             ItemUpdateListener {
         private final ConcurrentMap<CommitId, Commit> _commits = new ConcurrentSkipListMap<>();
@@ -440,6 +578,7 @@ public class FastImport {
 
         @Override
         public void folderChanged(final FolderUpdateEvent e) {
+            // Not supported
         }
     }
 
