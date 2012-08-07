@@ -56,8 +56,8 @@ public class Git {
             executable = "git";
         }
         if (gitDir == null) {
-            final Exec exec = new Exec(repoDir == null ? new File(".")
-                    : repoDir, executable, "rev-parse", "--git-dir");
+            Exec exec = new Exec(repoDir == null ? new File(".") : repoDir,
+                    executable, "rev-parse", "--git-dir");
             final ByteArrayOutputStream baos = new ByteArrayOutputStream();
             exec.setOutStream(baos);
             final int exit = exec.exec().waitFor();
@@ -67,7 +67,20 @@ public class Git {
                         + " rev-parse --git-dir failed", exit);
             }
 
-            gitDir = new File(baos.toString("UTF-8"));
+            String dir = baos.toString("UTF-8").trim();
+
+            if ("cygwin".equalsIgnoreCase(System.getenv("OSTYPE"))) {
+                exec = new Exec(new File("."), "cygpath", "-m", dir);
+                baos.reset();
+                exec.setOutStream(baos);
+                exec.setErrStream(null);
+
+                if (exec.exec().waitFor() == 0) {
+                    dir = baos.toString("UTF-8").trim();
+                }
+            }
+
+            gitDir = new File(dir);
         }
         if (repoDir == null) {
             final Exec exec = new Exec(new File("."), executable, "config",
@@ -81,8 +94,8 @@ public class Git {
                         + " config core.bare failed", exit);
             }
 
-            repoDir = Boolean.parseBoolean(baos.toString("UTF-8")) ? gitDir
-                    : gitDir.getParentFile();
+            repoDir = Boolean.parseBoolean(baos.toString("UTF-8").trim())
+                    ? gitDir : gitDir.getParentFile();
         }
 
         _gitDir = gitDir;

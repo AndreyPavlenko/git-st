@@ -254,10 +254,15 @@ public class Repo implements AutoCloseable {
         return _threadPool;
     }
 
-    public synchronized File getTempDir() {
+    public synchronized File getTempDir() throws IOException {
         if (_tempDir == null) {
             _tempDir = createFile(getRepoProperties().getGitstDir(), "tmp");
-            _tempDir.mkdirs();
+
+            if (!_tempDir.mkdirs()) {
+                throw new IOException("Failed to create directory: "
+                        + _tempDir.getAbsolutePath());
+            }
+
             Runtime.getRuntime().addShutdownHook(new DeleteHook(_tempDir));
         }
         return _tempDir;

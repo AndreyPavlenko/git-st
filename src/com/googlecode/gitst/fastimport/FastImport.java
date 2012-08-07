@@ -639,12 +639,15 @@ public class FastImport {
 
         @Override
         public void onStartFile(final CheckoutEvent e) {
+            final File f = e.getCurrentFile();
+            final RemoteFile id = new RemoteFile(f);
+            final String path = _files.get(id).get(0).getPath();
+
             try {
-                final File f = e.getCurrentFile();
-                e.setCurrentWorkingFile(_repo.createTempFile(_files
-                        .get(new RemoteFile(f)).get(0).getPath()));
+                e.setCurrentWorkingFile(_repo.createTempFile(path));
             } catch (final IOException ex) {
-                throw new RuntimeException();
+                throw new RuntimeException(
+                        "Failed to create temporary file for " + path, ex);
             }
         }
 

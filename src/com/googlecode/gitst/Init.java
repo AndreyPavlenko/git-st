@@ -13,6 +13,8 @@ import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Andrey Pavlenko
@@ -53,19 +55,22 @@ public class Init {
                 sb.append(host).append(':').append(port).append('/')
                         .append(project).append('/').append(view);
                 url = sb.toString();
+                dir.mkdirs();
 
-                if (!dir.exists()) {
-                    dir.mkdirs();
+                final List<String> initCmd = new ArrayList<>(3);
+                initCmd.add("git");
+                initCmd.add("init");
+
+                if (a.hasOption("--bare")) {
+                    initCmd.add("--bare");
+                }
+
+                final int exit = new Exec(dir, initCmd).exec().waitFor();
+                if (exit != 0) {
+                    throw new ExecutionException("git init failed", exit);
                 }
 
                 final Git git = new Git(dir);
-
-                if (a.hasOption("--bare")) {
-                    git.exec("init", "--bare").exec().waitFor();
-                } else {
-                    git.exec("init").exec().waitFor();
-                }
-
                 final RepoProperties props = new RepoProperties(git, "origin");
                 props.setLocalProperty(PROP_URL, url);
                 props.setLocalProperty(PROP_THREADS,

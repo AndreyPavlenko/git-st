@@ -17,7 +17,7 @@ public class Logger {
 
     public Logger(final OutputStream logWriter,
             final boolean progressBarSupported) {
-        this(logWriter, progressBarSupported, Level.INFO);
+        this(logWriter, progressBarSupported, null);
     }
 
     public Logger(final OutputStream logWriter,
@@ -27,14 +27,23 @@ public class Logger {
 
     public Logger(final PrintWriter logWriter,
             final boolean progressBarSupported) {
-        this(logWriter, progressBarSupported, Level.INFO);
+        this(logWriter, progressBarSupported, null);
     }
 
     public Logger(final PrintWriter logWriter,
             final boolean progressBarSupported, final Level level) {
         _logWriter = logWriter;
         _progressBarSupported = progressBarSupported;
-        _level = level;
+
+        if (level == null) {
+            if ("true".equalsIgnoreCase(System.getenv("GITST_DEBUG"))) {
+                _level = Level.DEBUG;
+            } else {
+                _level = Level.INFO;
+            }
+        } else {
+            _level = level;
+        }
     }
 
     public static Logger createConsoleLogger(final Level level) {
