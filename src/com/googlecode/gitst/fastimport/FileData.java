@@ -13,12 +13,8 @@ import com.starbase.starteam.File;
  */
 public class FileData implements FastimportCommand {
     private final File _file;
-    private String _path;
+    private final String _path;
     private java.io.File _checkout;
-
-    public FileData(final File file) {
-        _file = file;
-    }
 
     public FileData(final File file, final String path) {
         _file = file;
@@ -29,10 +25,7 @@ public class FileData implements FastimportCommand {
         return _file;
     }
 
-    public synchronized String getPath() {
-        if (_path == null) {
-            _path = Repo.getPath(getFile());
-        }
+    public String getPath() {
         return _path;
     }
 

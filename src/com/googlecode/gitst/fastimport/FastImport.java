@@ -76,7 +76,7 @@ public class FastImport {
                 props.getMetaProperty(META_PROP_ITEM_FILTER));
         _log.info("Loading history");
 
-        final Folder rootFolder = v.getRootFolder();
+        final Folder rootFolder = repo.getRootFolder();
         rootFolder.populateNow("File", FILE_PROPS, -1);
         rootFolder.populateNow("Folder", FOLDER_PROPS, -1);
         final ProgressBar pb = _log.createProgressBar("Loading history",
@@ -221,9 +221,14 @@ public class FastImport {
                 try {
                     final Repo repo = getRepo();
                     final CoListener l = new CoListener(repo, commits);
-                    final CheckoutManager mgr = repo.createCheckoutManager();
-                    mgr.addCheckoutListener(l);
-                    mgr.checkout(l.getItemList());
+                    final ItemList items = l.getItemList();
+
+                    if (items.size() > 0) {
+                        final CheckoutManager mgr = repo
+                                .createCheckoutManager();
+                        mgr.addCheckoutListener(l);
+                        mgr.checkout(l.getItemList());
+                    }
                 } catch (final Throwable ex) {
                     getRepo().getLogger().error("Checkout failed", ex);
                     main.interrupt();
@@ -292,13 +297,14 @@ public class FastImport {
             final ExecutorService threadPool) {
 
         if (prev == null) {
-            final FileData data = new FileData(file);
+            final FileData data = new FileData(file, getRepo().getPath(file));
             createFilemodify(filter, commits, date, data, true);
         } else if (file.isDeleted()) {
-            createFiledelete(filter, commits, date, file);
+            createFiledelete(filter, commits, file.getDeletedTime(), file);
         } else {
-            final String path = Repo.getPath(file);
-            final String prevPath = Repo.getPath(prev);
+            final Repo repo = getRepo();
+            final String path = repo.getPath(file);
+            final String prevPath = repo.getPath(prev);
 
             if (path.equals(prevPath)) {
                 final FileData data = new FileData(file, path);
@@ -345,7 +351,7 @@ public class FastImport {
 
         if (!filter.apply(user, date.getDoubleValue())) {
             final long time = date.getLongValue();
-            final FileDelete c = new FileDelete(item);
+            final FileDelete c = new FileDelete(item, getRepo().getPath(item));
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
             logChange(time, "D", c.getPath());
@@ -359,7 +365,7 @@ public class FastImport {
 
         if (!filter.apply(user, date.getDoubleValue())) {
             final long time = date.getLongValue();
-            final EmptyDir c = new EmptyDir(folder);
+            final EmptyDir c = new EmptyDir(folder, getRepo().getPath(folder));
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
             logChange(time, "A", c.getPath());
@@ -490,6 +496,7 @@ public class FastImport {
             ItemUpdateListener {
         private final ConcurrentMap<CommitId, Commit> _commits = new ConcurrentSkipListMap<>();
         private final ItemFilter _filter;
+        private final Folder _rootFolder = _repo.getRootFolder();
 
         public ViewListener(final ItemFilter filter) {
             _filter = filter;
@@ -502,73 +509,135 @@ public class FastImport {
         @Override
         public void itemAdded(final ItemUpdateEvent e) {
             final File f = (File) e.getNewItem();
-            final FileData data = new FileData(f);
-            final OLEDate date = f.getModifiedTime();
-            createFilemodify(_filter, _commits, date, data, true);
+
+            if (isUnderRoot(f)) {
+                final FileData data = new FileData(f, getRepo().getPath(f));
+                final OLEDate date = f.getModifiedTime();
+                createFilemodify(_filter, _commits, date, data, true);
+            }
         }
 
         @Override
         public void itemChanged(final ItemUpdateEvent e) {
+            final Repo repo = getRepo();
             final File src = (File) e.getOldItem();
             final File dest = (File) e.getNewItem();
-            final String srcPath = Repo.getPath(src);
-            final String destPath = Repo.getPath(dest);
-            final OLEDate date = dest.getModifiedTime();
+            final boolean srcUnderRoot = isUnderRoot(src);
+            final boolean destUnderRoot = isUnderRoot(dest);
 
-            if (!srcPath.equals(destPath)) {
-                final FileRename c = new FileRename(src, dest, srcPath,
-                        destPath);
-                createFilerename(_filter, _commits, date, c);
-            } else {
-                final FileData data = new FileData(dest);
-                createFilemodify(_filter, _commits, date, data, false);
+            if (srcUnderRoot && destUnderRoot) {
+                final String srcPath = repo.getPath(src);
+                final String destPath = repo.getPath(dest);
+                final OLEDate date = dest.getModifiedTime();
+
+                if (!srcPath.equals(destPath)) {
+                    final FileRename c = new FileRename(src, dest, srcPath,
+                            destPath);
+                    createFilerename(_filter, _commits, date, c);
+                } else {
+                    final FileData data = new FileData(dest, getRepo().getPath(
+                            dest));
+                    createFilemodify(_filter, _commits, date, data, false);
+                }
+            } else if (srcUnderRoot) {
+                final OLEDate date = dest.getModifiedTime();
+                createFiledelete(_filter, _commits, date, src);
+            } else if (destUnderRoot) {
+                itemAdded(e);
             }
         }
 
         @Override
         public void itemMoved(final ItemUpdateEvent e) {
+            final Repo repo = getRepo();
             final Item src = e.getOldItem();
             final Item dest = e.getNewItem();
-            final OLEDate date = dest.getModifiedTime();
-            final FileRename c = new FileRename(src, dest);
-            createFilerename(_filter, _commits, date, c);
+            final boolean srcUnderRoot = isUnderRoot(src);
+            final boolean destUnderRoot = isUnderRoot(dest);
+
+            if (srcUnderRoot && destUnderRoot) {
+                final String srcPath = repo.getPath(src);
+                final String destPath = repo.getPath(dest);
+                final OLEDate date = dest.getModifiedTime();
+                final FileRename c = new FileRename(src, dest, srcPath,
+                        destPath);
+                createFilerename(_filter, _commits, date, c);
+            } else if (srcUnderRoot) {
+                final OLEDate date = dest.getModifiedTime();
+                createFiledelete(_filter, _commits, date, src);
+            } else if (destUnderRoot) {
+                itemAdded(e);
+            }
         }
 
         @Override
         public void itemRemoved(final ItemUpdateEvent e) {
             final Item item = e.getOldItem();
-            final OLEDate date = item.getModifiedTime();
-            createFiledelete(_filter, _commits, date, item);
+
+            if (isUnderRoot(item)) {
+                final OLEDate date = item.getDeletedTime();
+                createFiledelete(_filter, _commits, date, item);
+            }
         }
 
         @Override
         public void folderMoved(final FolderUpdateEvent e) {
+            final Repo repo = getRepo();
             final Item src = e.getOldFolder();
             final Item dest = e.getNewFolder();
-            final OLEDate date = dest.getModifiedTime();
-            final FileRename c = new FileRename(src, dest);
-            createFilerename(_filter, _commits, date, c);
+            final boolean srcUnderRoot = isUnderRoot(src);
+            final boolean destUnderRoot = isUnderRoot(dest);
+
+            if (srcUnderRoot && destUnderRoot) {
+                final String srcPath = repo.getPath(src);
+                final String destPath = repo.getPath(dest);
+                final OLEDate date = dest.getModifiedTime();
+                final FileRename c = new FileRename(src, dest, srcPath,
+                        destPath);
+                createFilerename(_filter, _commits, date, c);
+            } else if (srcUnderRoot) {
+                final OLEDate date = dest.getModifiedTime();
+                createFiledelete(_filter, _commits, date, src);
+            } else if (destUnderRoot) {
+                folderAdded(e);
+            }
         }
 
         @Override
         public void folderRemoved(final FolderUpdateEvent e) {
             final Item item = e.getOldFolder();
-            final OLEDate date = item.getModifiedTime();
-            createFiledelete(_filter, _commits, date, item);
+
+            if (isUnderRoot(item)) {
+                final OLEDate date = item.getDeletedTime();
+                createFiledelete(_filter, _commits, date, item);
+            }
         }
 
         @Override
         public void folderAdded(final FolderUpdateEvent e) {
             final Folder folder = e.getNewFolder();
-            final ItemList files = folder.getList("File");
 
-            if (files.size() == 0) {
-                final ItemList folders = folder.getList("Folder");
+            if (isUnderRoot(folder)) {
+                final ItemList files = folder.getList("File");
 
-                if (folders.size() == 0) {
-                    createEmptyDir(_filter, _commits, folder);
+                if (files.size() == 0) {
+                    final ItemList folders = folder.getList("Folder");
+
+                    if (folders.size() == 0) {
+                        createEmptyDir(_filter, _commits, folder);
+                    }
                 }
             }
+        }
+
+        private boolean isUnderRoot(final Item i) {
+            for (Folder f = i.getParentFolder(); f != null; f = f
+                    .getParentFolder()) {
+                if (f.equals(_rootFolder)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -657,7 +726,7 @@ public class FastImport {
                 if (!e.isSuccessful()) {
                     _repo.getLogger().error(
                             "Failed to checkout file: "
-                                    + Repo.getPath(e.getCurrentFile()));
+                                    + _repo.getPath(e.getCurrentFile()));
                     return;
                 }
 

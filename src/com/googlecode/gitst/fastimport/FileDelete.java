@@ -11,11 +11,7 @@ import com.starbase.starteam.Item;
  */
 public class FileDelete extends FileChange {
     private final Item _item;
-    private String _path;
-
-    public FileDelete(final Item item) {
-        this(item, null);
-    }
+    private final String _path;
 
     public FileDelete(final Item item, final String path) {
         _item = item;
@@ -26,10 +22,7 @@ public class FileDelete extends FileChange {
         return _item;
     }
 
-    public synchronized String getPath() {
-        if (_path == null) {
-            _path = Repo.getPath(getItem());
-        }
+    public String getPath() {
         return _path;
     }
 

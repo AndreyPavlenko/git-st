@@ -81,6 +81,10 @@ public class Git {
             }
 
             gitDir = new File(dir);
+
+            if (!gitDir.isAbsolute()) {
+                gitDir = new File(exec.getProcessBuilder().directory(), dir);
+            }
         }
         if (repoDir == null) {
             final Exec exec = new Exec(new File("."), executable, "config",
@@ -210,6 +214,14 @@ public class Git {
         }
 
         return toFile;
+    }
+
+    public boolean containsPath(final String branch, final String path)
+            throws InterruptedException, IOException {
+        final Exec exec = exec("ls-tree", "--name-only", branch + ':' + path);
+        exec.setErrStream(null);
+        exec.setOutStream(null);
+        return exec.exec().waitFor() == 0;
     }
 
     public Exec checkout(final String... args) {

@@ -27,6 +27,7 @@ public class Remote {
             System.err.println("Remote repository name is not specified");
             System.exit(1);
         }
+
         final String remote = args[0];
         final Logger log = new Logger(System.err,
                 !"false".equalsIgnoreCase(System.getenv("GITST_PB")));
@@ -51,7 +52,6 @@ public class Remote {
 
             System.exit(1);
         }
-
     }
 
     public void exec(final String remoteName, final InputStream in,

@@ -11,11 +11,12 @@ import com.starbase.starteam.Folder;
  */
 public class EmptyDir extends FileChange {
     private final Folder _folder;
+    private final String _path;
     private String _comment;
-    private String _path;
 
-    public EmptyDir(final Folder folder) {
+    public EmptyDir(final Folder folder, final String path) {
         _folder = folder;
+        _path = path;
     }
 
     public Folder getFolder() {
@@ -30,10 +31,7 @@ public class EmptyDir extends FileChange {
         return _comment;
     }
 
-    public synchronized String getPath() {
-        if (_path == null) {
-            _path = Repo.getPath(getFolder());
-        }
+    public String getPath() {
         return _path;
     }
 

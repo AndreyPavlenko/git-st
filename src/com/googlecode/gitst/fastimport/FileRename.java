@@ -18,11 +18,6 @@ public class FileRename extends FileChange {
     private final String _destPath;
     private String _comment;
 
-    public FileRename(final Item sourceItem, final Item destItem) {
-        this(sourceItem, destItem, Repo.getPath(sourceItem), Repo
-                .getPath(destItem));
-    }
-
     public FileRename(final Item sourceItem, final Item destItem,
             final String sourcePath, final String destPath) {
         _sourceItem = sourceItem;
@@ -31,7 +26,8 @@ public class FileRename extends FileChange {
         _destPath = destPath;
 
         if (destItem instanceof File) {
-            _fileModify = new FileModify(new FileData((File) destItem), true);
+            _fileModify = new FileModify(
+                    new FileData((File) destItem, destPath), true);
         } else {
             _fileModify = null;
         }

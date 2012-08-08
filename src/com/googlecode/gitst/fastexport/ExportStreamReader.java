@@ -18,6 +18,7 @@ public class ExportStreamReader {
     private final StreamReader _stream;
     private final Map<String, FastExportCommandReader> _readers;
     private final Map<Integer, Commit> _commits = new TreeMap<>();
+    private final TreeMap<String, Commit> _emptyDirs = new TreeMap<>();
     private int _fileChangesCount;
 
     public ExportStreamReader(final Repo repo, final StreamReader stream) {
@@ -54,11 +55,11 @@ public class ExportStreamReader {
     }
 
     public Map<Integer, Commit> readCommits() throws IOException,
-            UnsupportedCommandException {
+            InterruptedException, UnsupportedCommandException {
         final Repo repo = getRepo();
         final Logger log = repo.getLogger();
         final StreamReader r = getStreamReader();
-        int unmarked = Integer.MIN_VALUE;
+        int maxMark = 0;
         Commit commit = null;
         FastExportCommand prev = null;
 
@@ -77,8 +78,10 @@ public class ExportStreamReader {
                             Integer mark = commit.getMark();
 
                             if (mark == null) {
-                                mark = unmarked++;
+                                mark = ++maxMark;
                                 commit.setMark(mark);
+                            } else {
+                                maxMark = Math.max(maxMark, mark);
                             }
 
                             if (!repo.isGitStComment(commit.getComment())
@@ -105,8 +108,10 @@ public class ExportStreamReader {
             Integer mark = commit.getMark();
 
             if (mark == null) {
-                mark = unmarked++;
+                mark = ++maxMark;
                 commit.setMark(mark);
+            } else {
+                maxMark = Math.max(maxMark, mark);
             }
 
             if (!repo.isGitStComment(commit.getComment())
@@ -114,6 +119,22 @@ public class ExportStreamReader {
                 _commits.put(mark, commit);
             } else if (log.isDebugEnabled()) {
                 log.debug("Ignoring: " + commit);
+            }
+        }
+
+        for (Map.Entry<String, Commit> e = _emptyDirs.pollLastEntry(); e != null; e = _emptyDirs
+                .pollLastEntry()) {
+            final Commit cmt = e.getValue();
+
+            if (!repo.isGitStComment(cmt.getComment())) {
+                final Commit newCmt = new Commit();
+                newCmt.setComment(cmt.getComment());
+                newCmt.setCommitter(cmt.getCommitter());
+                newCmt.setDate(cmt.getDate());
+                newCmt.setFrom(maxMark);
+                newCmt.setMark(++maxMark);
+                newCmt.addChange(new FileDelete(e.getKey()));
+                _commits.put(newCmt.getMark(), newCmt);
             }
         }
 
@@ -135,10 +156,23 @@ public class ExportStreamReader {
         }
     }
 
+    private void checkEmptyDirs(final String path, final Commit cmt)
+            throws InterruptedException, IOException {
+        final String parent = Repo.getParentFolderPath(path);
+
+        if ((parent.length() != 0) && !getRepo().isIgnored(parent)) {
+            if (!_repo.getGit().containsPath(_repo.getBranchName(), parent)) {
+                _emptyDirs.put(parent, cmt);
+                checkEmptyDirs(parent, cmt);
+            }
+        }
+    }
+
     private interface FastExportCommandReader {
         public FastExportCommand read(StreamReader r, String line,
                 Commit commit, FastExportCommand prev)
-                throws UnsupportedCommandException, IOException;
+                throws UnsupportedCommandException, InterruptedException,
+                IOException;
     }
 
     private static class CommitReader implements FastExportCommandReader {
@@ -241,9 +275,11 @@ public class ExportStreamReader {
         @Override
         public FastExportCommand read(final StreamReader r, final String line,
                 final Commit commit, final FastExportCommand prev)
-                throws UnsupportedCommandException {
+                throws UnsupportedCommandException, InterruptedException,
+                IOException {
             final FileDelete c = new FileDelete(line.substring(2));
             addChange(commit, c);
+            checkEmptyDirs(c.getPath(), commit);
             return c;
         }
     }
@@ -252,10 +288,12 @@ public class ExportStreamReader {
         @Override
         public FastExportCommand read(final StreamReader r, final String line,
                 final Commit commit, final FastExportCommand prev)
-                throws UnsupportedCommandException {
+                throws UnsupportedCommandException, InterruptedException,
+                IOException {
             final String[] args = r.split(line, true);
             final FileRename c = new FileRename(args[1], args[2]);
             addChange(commit, c);
+            checkEmptyDirs(c.getPath(), commit);
             return c;
         }
     }

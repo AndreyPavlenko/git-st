@@ -123,7 +123,7 @@ public class Logger {
     }
 
     public ProgressBar createProgressBar(final Object message, final int total) {
-        if (!isProgressBarSupported()) {
+        if (!isProgressBarSupported() || (total == 0)) {
             return new DummyProgressBar();
         }
 
