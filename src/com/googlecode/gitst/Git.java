@@ -233,6 +233,7 @@ public class Git {
         final Exec exec = new Exec(getRepoDir(), "git", "show-ref", "--verify",
                 "-s", ref);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(64);
+        exec.setErrStream(null);
         exec.setOutStream(baos);
         final int exit = exec.exec().waitFor();
         return (exit == 0) ? new String(baos.toByteArray()).trim() : null;
@@ -240,11 +241,17 @@ public class Git {
 
     public void updateRef(final String ref, final String sha)
             throws InterruptedException, IOException, ExecutionException {
-        final Exec exec = new Exec(getRepoDir(), "git", "update-ref", ref, sha);
+        Exec exec = new Exec(getRepoDir(), "git", "update-ref", ref, sha);
+        exec.setErrStream(null);
+        exec.setOutStream(null);
         final int exit = exec.exec().waitFor();
 
         if (exit != 0) {
-            if (new Exec(getRepoDir(), "git", "show-ref", ref).exec().waitFor() != 0) {
+            exec = new Exec(getRepoDir(), "git", "show-ref", ref);
+            exec.setErrStream(null);
+            exec.setOutStream(null);
+
+            if (exec.exec().waitFor() != 0) {
                 // Ref does not exists
                 final File f = new File(getGitDir(), ref);
                 f.getParentFile().mkdirs();
