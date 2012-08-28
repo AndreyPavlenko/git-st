@@ -713,6 +713,8 @@ public class FastImport {
             final String path = _files.get(id).get(0).getPath();
 
             try {
+                // Workaround to disable EOL conversion
+                f.put("EOL", null);
                 e.setCurrentWorkingFile(_repo.createTempFile(path));
             } catch (final IOException ex) {
                 throw new RuntimeException(
