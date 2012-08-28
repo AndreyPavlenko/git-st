@@ -57,12 +57,13 @@
 
     <target name="assemble-zip" depends="jar">
         <property name="assemble.zip.dir" location="${assemble.dir}/zip" />
+        <property name="assemble.zip.git-core"
+                  location="${assemble.zip.dir}/git-core" />
         <delete dir="${assemble.zip.dir}" />
 
-        <copy todir="${assemble.zip.dir}/${project.name}/lib"
-              file="${jar.file}" />
+        <copy todir="${assemble.zip.git-core}" file="${jar.file}" />
 
-        <copy todir="${assemble.zip.dir}/${project.name}/bin">
+        <copy todir="${assemble.zip.git-core}">
             <fileset dir="${bin.dir}" includes="*" />
             <filterchain>
                 <replacetokens>
@@ -71,22 +72,19 @@
             </filterchain>
         </copy>
 
-        <chmod perm="a+x"
-               file="${assemble.zip.dir}/${project.name}/bin/git-st" />
-        <chmod perm="a+x"
-               file="${assemble.zip.dir}/${project.name}/bin/git-remote-st" />
-        <chmod perm="a+x"
-               file="${assemble.zip.dir}/${project.name}/bin/git-remote-starteam" />
+        <chmod perm="a+x" file="${assemble.zip.git-core}/git-st" />
+        <chmod perm="a+x" file="${assemble.zip.git-core}/git-remote-st" />
+        <chmod perm="a+x" file="${assemble.zip.git-core}/git-remote-starteam" />
     </target>
 
     <target name="distrib-zip" depends="assemble-zip">
         <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
             <zipfileset dir="${assemble.zip.dir}"
                         includes="**/**"
-                        excludes="${project.name}/bin/*" />
+                        excludes="**/git-st, **/git-remote-*" />
             <zipfileset dir="${assemble.zip.dir}"
                         filemode="755"
-                        includes="${project.name}/bin/*" />
+                        includes="**/git-st, **/git-remote-*" />
         </zip>
     </target>
 
