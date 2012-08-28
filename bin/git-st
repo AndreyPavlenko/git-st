@@ -75,8 +75,11 @@ then
         push)
             CLASS_NAME="Push"
             ;;
+        status)
+            CLASS_NAME="Status"
+            ;;
         *)
-            echo "Usage: git st <init|pull|push> [-J<JavaArg>]*" >&2
+            echo "Usage: git st <init|pull|push|status> [-J<JavaArg>]*" >&2
             exit 1
             ;;
     esac

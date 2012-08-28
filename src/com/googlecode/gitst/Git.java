@@ -11,7 +11,9 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * @author Andrey Pavlenko
@@ -286,6 +288,29 @@ public class Git {
         final Marks marks = new Marks();
         final File f = getMarksFile(ref);
         return f.isFile() ? marks.load(f) : marks;
+    }
+
+    public Set<String> listIgnored() throws InterruptedException, IOException {
+        final Set<String> ignores = new HashSet<>();
+        final Exec exec = exec("ls-files", "-i", "-o", "--exclude-standard",
+                "--directory");
+        exec.setOutStream(null);
+        final Process proc = exec.exec().getProcess();
+
+        try {
+            final BufferedReader r = new BufferedReader(new InputStreamReader(
+                    proc.getInputStream()));
+
+            for (String s = r.readLine(); s != null; s = r.readLine()) {
+                ignores.add(s.trim());
+            }
+
+            exec.waitFor();
+        } finally {
+            proc.destroy();
+        }
+
+        return ignores;
     }
 
     public CredentialHelper getCredentialHelper(final String protocol,
