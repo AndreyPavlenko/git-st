@@ -37,6 +37,7 @@ import com.googlecode.gitst.RepoProperties;
 import com.starbase.starteam.CheckoutEvent;
 import com.starbase.starteam.CheckoutListener;
 import com.starbase.starteam.CheckoutManager;
+import com.starbase.starteam.CheckoutProgress;
 import com.starbase.starteam.File;
 import com.starbase.starteam.Folder;
 import com.starbase.starteam.FolderUpdateEvent;
@@ -758,6 +759,7 @@ public class FastImport {
         private final ProgressBar _pbar;
         private final Map<RemoteFile, List<FileData>> _files;
         private final ItemList _itemList;
+        private int _remaining;
 
         public CoListener(final Repo repo, final Collection<Commit> commits) {
             _repo = repo;
@@ -805,8 +807,9 @@ public class FastImport {
                 }
             }
 
+            _remaining = _itemList.size();
             _pbar = repo.getLogger().createProgressBar("Checking out",
-                    _itemList.size());
+                    _remaining);
         }
 
         public ItemList getItemList() {
@@ -831,6 +834,8 @@ public class FastImport {
 
         @Override
         public void onNotifyProgress(final CheckoutEvent e) {
+            handleProgress(e.getProgress());
+
             if (e.isFinished()) {
                 if (!e.isSuccessful()) {
                     _repo.getLogger().error(
@@ -839,7 +844,6 @@ public class FastImport {
                     return;
                 }
 
-                _pbar.done(1);
                 final File f = e.getCurrentFile();
                 final RemoteFile id = new RemoteFile(f);
                 java.io.File wf = e.getCurrentWorkingFile();
@@ -868,6 +872,34 @@ public class FastImport {
                     data.get(0).setCheckout(wf);
                 }
             }
+        }
+
+        private void handleProgress(final CheckoutProgress p) {
+            final int diff;
+
+            synchronized (this) {
+                if (_remaining <= 0) {
+                    return;
+                }
+
+                final int remaining = p.getTotalFilesRemaining();
+
+                if (remaining <= 0) {
+                    _remaining = 0;
+                    _pbar.complete();
+                    return;
+                }
+
+                diff = _remaining - remaining;
+
+                if (diff > 0) {
+                    _remaining = remaining;
+                } else {
+                    return;
+                }
+            }
+
+            _pbar.done(diff);
         }
     }
 }

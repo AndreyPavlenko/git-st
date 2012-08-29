@@ -76,8 +76,7 @@ public class Internals {
                 c.execCommand(cmd);
                 pop(cmd);
                 c.terminateCommand(cmd);
-            } catch (final Throwable ex) {
-                throw new RuntimeException(ex);
+            } catch (IOException | RuntimeException ex) {
             } finally {
                 c.commandNotInUse();
                 c.unlock();
