@@ -7,9 +7,11 @@ PKG_NAME="com.googlecode.gitst"
 if [[ ${OS} = *indows* ]]
 then
     IS_WINDOWS="true"
+    FILE_EXT=".exe"
     PS=';'
 else
     PS=':'
+    FILE_EXT=""
 fi
 
 if [ -z "${STARTEAM_JAVA_API}" ]
@@ -99,4 +101,14 @@ do
     fi
 done
 
-exec java -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
+if [ ! -z "${JAVA7_HOME}" ] && [ -f "${JAVA7_HOME}/bin/java${FILE_EXT}" ]
+then
+    JAVA="${JAVA7_HOME}/bin/java${FILE_EXT}"
+elif [ ! -z "${JAVA_HOME}" ] && [ -f "${JAVA_HOME}/bin/java${FILE_EXT}" ]
+then
+    JAVA="$JAVA_HOME/bin/java${FILE_EXT}"
+else
+    JAVA="java"
+fi
+
+exec "$JAVA" -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
