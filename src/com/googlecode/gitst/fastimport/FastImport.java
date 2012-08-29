@@ -1,6 +1,8 @@
 package com.googlecode.gitst.fastimport;
 
 import static com.googlecode.gitst.RepoProperties.META_PROP_ITEM_FILTER;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXTHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_MAXTHREADS;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -8,17 +10,21 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.EventObject;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import com.borland.starteam.impl.Internals;
 import com.googlecode.gitst.Exec;
 import com.googlecode.gitst.ExecutionException;
 import com.googlecode.gitst.Git;
@@ -69,8 +75,6 @@ public class FastImport {
             throws InterruptedException, IOException {
         final Repo repo = getRepo();
         final RepoProperties props = repo.getRepoProperties();
-        final View v = repo.connect();
-        final ExecutorService threadPool = repo.getThreadPool();
         final ConcurrentSkipListMap<CommitId, Commit> commits = new ConcurrentSkipListMap<>();
         final ItemFilter filter = new ItemFilter(
                 props.getMetaProperty(META_PROP_ITEM_FILTER));
@@ -79,13 +83,10 @@ public class FastImport {
         final Folder rootFolder = repo.getRootFolder();
         rootFolder.populateNow("File", FILE_PROPS, -1);
         rootFolder.populateNow("Folder", FOLDER_PROPS, -1);
-        final ProgressBar pb = _log.createProgressBar("Loading history",
-                (int) rootFolder.countItems(v.getServer().typeForName("File"),
-                        -1));
-        load(filter, commits, endDate, rootFolder, threadPool, pb);
-        threadPool.shutdown();
-        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        pb.complete();
+
+        final List<Item[]> history = loadHistory(filter, commits, rootFolder);
+        processHistory(filter, commits, endDate, history);
+
         return commits;
     }
 
@@ -172,10 +173,11 @@ public class FastImport {
     public void submit(final Collection<Commit> commits, final OutputStream out)
             throws IOException, InterruptedException, ExecutionException {
         final Repo repo = getRepo();
+        final long time = System.currentTimeMillis();
         final String branch = repo.getBranchName();
         final ProgressBar b = _log.createProgressBar("Importing to git",
                 commits.size());
-        final ExecutorService threadPool = repo.getThreadPool();
+        final ExecutorService threadPool = Executors.newSingleThreadExecutor();
         final PrintStream s = new PrintStream(out);
         final String from = repo.getGit().showRef(branch);
         int mark = 0;
@@ -209,6 +211,11 @@ public class FastImport {
         threadPool.shutdown();
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         b.complete();
+
+        if (_log.isDebugEnabled()) {
+            _log.debug("Imported in " + (System.currentTimeMillis() - time)
+                    + " ms.");
+        }
     }
 
     private void checkout(final Collection<Commit> commits,
@@ -237,89 +244,175 @@ public class FastImport {
         });
     }
 
-    private void load(final ItemFilter filter,
-            final ConcurrentMap<CommitId, Commit> commits,
-            final OLEDate endDate, final Folder folder,
-            final ExecutorService threadPool, final ProgressBar pb) {
-        final ItemList files = folder.getList("File");
-        final ItemList folders = folder.getList("Folder");
+    private List<Item[]> loadHistory(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits, final Folder folder)
+            throws InterruptedException {
+        final Repo repo = getRepo();
+        final int count = (int) folder.countItems(
+                repo.getServer().typeForName("File"), -1);
+        final ProgressBar pb = _log.createProgressBar("Loading history", count);
+        final List<Item[]> history = new Vector<>(count);
+        final ExecutorService threadPool = createThreadPool((count / 100) * 3);
+        final ItemList list = new ItemList();
+        long time = System.currentTimeMillis();
 
-        if ((files.size() == 0) && (folders.size() == 0)) {
-            createEmptyDir(filter, commits, folder);
+        loadHistory(filter, commits, folder, threadPool, pb, history, list);
+        threadPool.shutdown();
+        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+
+        if (_log.isDebugEnabled()) {
+            _log.debug("History loaded in "
+                    + (System.currentTimeMillis() - time) + " ms.");
+        }
+
+        if (list.size() > 0) {
+            time = System.currentTimeMillis();
+            list.populateNow(FILE_PROPS);
+
+            if (_log.isDebugEnabled()) {
+                _log.debug("History populated in "
+                        + (System.currentTimeMillis() - time) + " ms.");
+            }
+        }
+
+        pb.complete();
+        return history;
+    }
+
+    private void loadHistory(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits, final Folder folder,
+            final ExecutorService threadPool, final ProgressBar pb,
+            final List<Item[]> history, final ItemList list) {
+        final Repo repo = getRepo();
+        final Item[] files = folder.getItems("File");
+        final Folder[] folders = folder.getSubFolders();
+
+        if ((files.length == 0) && (folders.length == 0)) {
+            createEmptyDir(filter, commits, folder, false);
             return;
         }
 
-        final double end = endDate.getDoubleValue();
-
-        for (final Enumeration<?> en = files.elements(); en.hasMoreElements();) {
-            final File f = (File) en.nextElement();
+        for (final Item f : files) {
             threadPool.submit(new Runnable() {
 
                 @Override
                 public void run() {
-                    final Item[] history = f.getHistory();
-                    final ItemList list = new ItemList();
+                    try {
+                        if (_log.isInfoEnabled()) {
+                            _log.info(repo.getPath(f) + ':'
+                                    + f.getDotNotation());
+                        }
 
-                    for (int i = history.length - 1; i >= 0; i--) {
-                        list.addItem(history[i]);
+                        history.add(Internals.getHistory(repo, f, list));
+                    } catch (final Throwable ex) {
+                        _log.error(ex.getMessage(), ex);
+                    } finally {
+                        pb.done(1);
                     }
+                }
+            });
+        }
 
+        for (final Folder f : folders) {
+            loadHistory(filter, commits, f, threadPool, pb, history, list);
+        }
+    }
+
+    private void processHistory(final ItemFilter filter,
+            final ConcurrentMap<CommitId, Commit> commits,
+            final OLEDate endDate, final List<Item[]> history)
+            throws InterruptedException {
+        final Repo repo = getRepo();
+        final boolean verbose = _log.isDebugEnabled();
+        final long time = System.currentTimeMillis();
+        final double end = endDate.getDoubleValue();
+        final ProgressBar pb = _log.createProgressBar("Processing history",
+                history.size());
+        final ExecutorService threadPool = createThreadPool(Runtime
+                .getRuntime().availableProcessors() - 1);
+
+        for (final Item[] itemHistory : history) {
+            threadPool.submit(new Runnable() {
+
+                @Override
+                public void run() {
+                    try {
+                        doRun();
+                    } catch (final Throwable ex) {
+                        _log.error(ex.getMessage(), ex);
+                    } finally {
+                        pb.done(1);
+                    }
+                }
+
+                public void doRun() {
                     File prev = null;
-                    list.populateNow(FILE_PROPS);
 
-                    for (final Enumeration<?> i = list.elements(); i
-                            .hasMoreElements();) {
-                        final File h = (File) i.nextElement();
+                    for (int i = itemHistory.length - 1; i >= 0; i--) {
+                        final File h = (File) itemHistory[i];
                         final OLEDate date = h.getModifiedTime();
 
                         if (date.getDoubleValue() >= end) {
                             break;
                         }
 
-                        load(filter, commits, h, prev, date, threadPool);
+                        if (prev == null) {
+                            final FileData data = new FileData(h, repo
+                                    .getPath(h));
+                            createFilemodify(filter, commits, date, data, true,
+                                    verbose);
+                        } else if (h.isDeleted()) {
+                            createFiledelete(filter, commits,
+                                    h.getDeletedTime(), h, verbose);
+                        } else {
+                            final String path = repo.getPath(h);
+                            final String prevPath = repo.getPath(prev);
+
+                            if (path.equals(prevPath)) {
+                                final FileData data = new FileData(h, path);
+                                createFilemodify(filter, commits, date, data,
+                                        false, verbose);
+                            } else {
+                                final FileRename rename = new FileRename(prev,
+                                        h, prevPath, path);
+                                createFilerename(filter, commits, date, rename,
+                                        verbose);
+                            }
+                        }
+
                         prev = h;
                     }
-
-                    pb.done(1);
                 }
             });
         }
 
-        for (final Enumeration<?> en = folders.elements(); en.hasMoreElements();) {
-            load(filter, commits, endDate, (Folder) en.nextElement(),
-                    threadPool, pb);
+        threadPool.shutdown();
+        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        pb.complete();
+
+        if (_log.isDebugEnabled()) {
+            _log.debug("History processed in "
+                    + (System.currentTimeMillis() - time) + " ms.");
         }
     }
 
-    private void load(final ItemFilter filter,
-            final ConcurrentMap<CommitId, Commit> commits, final File file,
-            final File prev, final OLEDate date,
-            final ExecutorService threadPool) {
-
-        if (prev == null) {
-            final FileData data = new FileData(file, getRepo().getPath(file));
-            createFilemodify(filter, commits, date, data, true);
-        } else if (file.isDeleted()) {
-            createFiledelete(filter, commits, file.getDeletedTime(), file);
-        } else {
-            final Repo repo = getRepo();
-            final String path = repo.getPath(file);
-            final String prevPath = repo.getPath(prev);
-
-            if (path.equals(prevPath)) {
-                final FileData data = new FileData(file, path);
-                createFilemodify(filter, commits, date, data, false);
-            } else {
-                final FileRename rename = new FileRename(prev, file, prevPath,
-                        path);
-                createFilerename(filter, commits, date, rename);
-            }
+    private ExecutorService createThreadPool(int t) {
+        if (t <= 0) {
+            t = 1;
         }
+
+        final Repo repo = getRepo();
+        final RepoProperties props = repo.getRepoProperties();
+        final int maxt = Integer.parseInt(props.getProperty(PROP_MAXTHREADS,
+                PROP_DEFAULT_MAXTHREADS));
+        return new ThreadPoolExecutor(0, Math.min(t, maxt), 60L,
+                TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
+                new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
     private void createFilemodify(final ItemFilter filter,
             final ConcurrentMap<CommitId, Commit> commits, final OLEDate date,
-            final FileData data, final boolean isNewFile) {
+            final FileData data, final boolean isNewFile, final boolean verbose) {
         final int user = data.getFile().getModifiedBy();
 
         if (!filter.apply(user, date.getDoubleValue())) {
@@ -327,26 +420,33 @@ public class FastImport {
             final FileModify c = new FileModify(data, isNewFile);
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
-            logChange(time, isNewFile ? "A" : "M", c.getPath());
+
+            if (verbose) {
+                logChange(time, isNewFile ? "A" : "M", c.getPath());
+            }
         }
     }
 
     private void createFilerename(final ItemFilter filter,
             final ConcurrentMap<CommitId, Commit> commits, final OLEDate date,
-            final FileRename c) {
+            final FileRename c, final boolean verbose) {
         final int user = c.getDestItem().getModifiedBy();
 
         if (!filter.apply(user, date.getDoubleValue())) {
             final long time = date.getLongValue();
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
-            logChange(time, "R", c.getSourcePath() + " -> " + c.getDestPath());
+
+            if (verbose) {
+                logChange(time, "R",
+                        c.getSourcePath() + " -> " + c.getDestPath());
+            }
         }
     }
 
     private void createFiledelete(final ItemFilter filter,
             final ConcurrentMap<CommitId, Commit> commits, final OLEDate date,
-            final Item item) {
+            final Item item, final boolean verbose) {
         final int user = item.getDeletedUserID();
 
         if (!filter.apply(user, date.getDoubleValue())) {
@@ -354,12 +454,16 @@ public class FastImport {
             final FileDelete c = new FileDelete(item, getRepo().getPath(item));
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
-            logChange(time, "D", c.getPath());
+
+            if (verbose) {
+                logChange(time, "D", c.getPath());
+            }
         }
     }
 
     private void createEmptyDir(final ItemFilter filter,
-            final ConcurrentMap<CommitId, Commit> commits, final Folder folder) {
+            final ConcurrentMap<CommitId, Commit> commits, final Folder folder,
+            final boolean verbose) {
         final int user = folder.getModifiedBy();
         final OLEDate date = folder.getModifiedTime();
 
@@ -368,7 +472,10 @@ public class FastImport {
             final EmptyDir c = new EmptyDir(folder, getRepo().getPath(folder));
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
-            logChange(time, "A", c.getPath());
+
+            if (verbose) {
+                logChange(time, "A", c.getPath());
+            }
         }
     }
 
@@ -513,7 +620,7 @@ public class FastImport {
             if (isUnderRoot(f)) {
                 final FileData data = new FileData(f, getRepo().getPath(f));
                 final OLEDate date = f.getModifiedTime();
-                createFilemodify(_filter, _commits, date, data, true);
+                createFilemodify(_filter, _commits, date, data, true, true);
             }
         }
 
@@ -533,15 +640,15 @@ public class FastImport {
                 if (!srcPath.equals(destPath)) {
                     final FileRename c = new FileRename(src, dest, srcPath,
                             destPath);
-                    createFilerename(_filter, _commits, date, c);
+                    createFilerename(_filter, _commits, date, c, true);
                 } else {
                     final FileData data = new FileData(dest, getRepo().getPath(
                             dest));
-                    createFilemodify(_filter, _commits, date, data, false);
+                    createFilemodify(_filter, _commits, date, data, false, true);
                 }
             } else if (srcUnderRoot) {
                 final OLEDate date = dest.getModifiedTime();
-                createFiledelete(_filter, _commits, date, src);
+                createFiledelete(_filter, _commits, date, src, true);
             } else if (destUnderRoot) {
                 itemAdded(e);
             }
@@ -561,10 +668,10 @@ public class FastImport {
                 final OLEDate date = dest.getModifiedTime();
                 final FileRename c = new FileRename(src, dest, srcPath,
                         destPath);
-                createFilerename(_filter, _commits, date, c);
+                createFilerename(_filter, _commits, date, c, true);
             } else if (srcUnderRoot) {
                 final OLEDate date = dest.getModifiedTime();
-                createFiledelete(_filter, _commits, date, src);
+                createFiledelete(_filter, _commits, date, src, true);
             } else if (destUnderRoot) {
                 itemAdded(e);
             }
@@ -576,7 +683,7 @@ public class FastImport {
 
             if (isUnderRoot(item)) {
                 final OLEDate date = item.getDeletedTime();
-                createFiledelete(_filter, _commits, date, item);
+                createFiledelete(_filter, _commits, date, item, true);
             }
         }
 
@@ -594,10 +701,10 @@ public class FastImport {
                 final OLEDate date = dest.getModifiedTime();
                 final FileRename c = new FileRename(src, dest, srcPath,
                         destPath);
-                createFilerename(_filter, _commits, date, c);
+                createFilerename(_filter, _commits, date, c, true);
             } else if (srcUnderRoot) {
                 final OLEDate date = dest.getModifiedTime();
-                createFiledelete(_filter, _commits, date, src);
+                createFiledelete(_filter, _commits, date, src, true);
             } else if (destUnderRoot) {
                 folderAdded(e);
             }
@@ -609,7 +716,7 @@ public class FastImport {
 
             if (isUnderRoot(item)) {
                 final OLEDate date = item.getDeletedTime();
-                createFiledelete(_filter, _commits, date, item);
+                createFiledelete(_filter, _commits, date, item, true);
             }
         }
 
@@ -624,7 +731,7 @@ public class FastImport {
                     final ItemList folders = folder.getList("Folder");
 
                     if (folders.size() == 0) {
-                        createEmptyDir(_filter, _commits, folder);
+                        createEmptyDir(_filter, _commits, folder, true);
                     }
                 }
             }

@@ -23,11 +23,13 @@ public class RepoProperties {
     public static final String PROP_USER = "user";
     public static final String PROP_PASSWORD = "password";
     public static final String PROP_THREADS = "threads";
+    public static final String PROP_MAXTHREADS = "maxthreads";
     public static final String PROP_IGNORE = "ignore";
     public static final String PROP_USER_PATTERN = "userpattern";
     public static final String PROP_FETCH = "fetch";
     public static final String PROP_DEFAULT_BRANCH = "master";
     public static final String PROP_DEFAULT_THREADS = "3";
+    public static final String PROP_DEFAULT_MAXTHREADS = "30";
     public static final String PROP_DEFAULT_IGNORE = "\\.gitignore;.*/\\.gitignore";
     public static final String PROP_DEFAULT_USER_PATTERN = "{0} <{4}.{2}@mycompany.com>";
     public static final String META_PROP_LAST_PULL_DATE = "LastPullDate";

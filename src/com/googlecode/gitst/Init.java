@@ -3,10 +3,12 @@ package com.googlecode.gitst;
 import static com.googlecode.gitst.RepoProperties.PROP_CA;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_IGNORE;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_THREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXTHREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_FETCH;
 import static com.googlecode.gitst.RepoProperties.PROP_IGNORE;
 import static com.googlecode.gitst.RepoProperties.PROP_THREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_MAXTHREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_URL;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
 
@@ -105,6 +107,9 @@ public class Init {
 
         if (props.getProperty(PROP_THREADS, null) == null) {
             props.setLocalProperty(PROP_THREADS, PROP_DEFAULT_THREADS);
+        }
+        if (props.getProperty(PROP_MAXTHREADS, null) == null) {
+            props.setLocalProperty(PROP_MAXTHREADS, PROP_DEFAULT_MAXTHREADS);
         }
         if (props.getProperty(PROP_USER_PATTERN, null) == null) {
             props.setLocalProperty(PROP_USER_PATTERN, PROP_DEFAULT_USER_PATTERN);

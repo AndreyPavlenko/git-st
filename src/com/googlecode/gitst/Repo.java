@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 import com.starbase.starteam.CheckinManager;
@@ -58,6 +56,7 @@ public class Repo implements AutoCloseable {
             "dd.MM.yy HH:mm:ss");
     private final RepoProperties _repoProperties;
     private final Logger _logger;
+    private final ConnectionPool _pool;
     private final String _branchName;
     private final String _userNamePattern;
     private final Map<String, Folder> _folderCache;
@@ -66,7 +65,6 @@ public class Repo implements AutoCloseable {
     private volatile List<Pattern> _ignoreFiles;
     private View _view;
     private Folder _rootFolder;
-    private ExecutorService _threadPool;
     private File _tempDir;
 
     public Repo(final RepoProperties repoProperties, final Logger logger) {
@@ -75,6 +73,7 @@ public class Repo implements AutoCloseable {
                 PROP_DEFAULT_USER_PATTERN);
         _repoProperties = repoProperties;
         _logger = logger;
+        _pool = new ConnectionPool();
         _folderCache = new ConcurrentHashMap<>();
         _fileCache = new ConcurrentHashMap<>();
         //@formatter:off
@@ -86,119 +85,151 @@ public class Repo implements AutoCloseable {
       //@formatter:on
     }
 
-    public synchronized View connect() {
-        if (_view == null) {
-            final RepoProperties props = getRepoProperties();
-            final StarTeamURL url = getUrl();
-            final int port = Integer.parseInt(url.getPort());
-            final int protocol = url.getProtocol();
-            final String host = url.getHostName();
-            final String project = url.getProjectName();
-            final String view = getViewName(url);
-            final String ca = props.getProperty(PROP_CA, null);
-            final ServerInfo info = new ServerInfo();
-            String userName = props.getProperty(PROP_USER, null);
-            String password = props.getProperty(PROP_PASSWORD, null);
-            final Server server;
+    public Server getIdleConnection() {
+        return _pool.get();
+    }
 
-            if (getLogger().isDebugEnabled()) {
-                final java.io.File dir = new File(props.getGitstDir(),
-                        getBranchName());
-                dir.mkdirs();
-                NetMonitor.onFile(new java.io.File(dir, "NetMonitor.log"));
-            }
+    public void releaseConnection(final Server s) {
+        _pool.release(s);
+    }
 
-            if (userName == null) {
-                userName = url.getUserName();
-            }
-            if (password == null) {
-                password = url.getPassword();
-            }
-            if (ca != null) {
-                if (Boolean.parseBoolean(ca)) {
-                    info.setAutoLocateCacheAgent(true);
+    private Server createNewConnection() {
+        final StarTeamURL url = getUrl();
+        final RepoProperties props = getRepoProperties();
+        final int port = Integer.parseInt(url.getPort());
+        final int protocol = url.getProtocol();
+        final String host = url.getHostName();
+        final String ca = props.getProperty(PROP_CA, null);
+        final ServerInfo info = new ServerInfo();
+        String userName = props.getProperty(PROP_USER, null);
+        String password = props.getProperty(PROP_PASSWORD, null);
+        final Server server;
+
+        if (userName == null) {
+            userName = url.getUserName();
+        }
+        if (password == null) {
+            password = url.getPassword();
+        }
+        if (ca != null) {
+            if (Boolean.parseBoolean(ca)) {
+                info.setAutoLocateCacheAgent(true);
+            } else {
+                final int ind = ca.indexOf(':');
+
+                if (ind == -1) {
+                    info.setMPXCacheAgentAddress(ca);
                 } else {
-                    final int ind = ca.indexOf(':');
-
-                    if (ind == -1) {
-                        info.setMPXCacheAgentAddress(ca);
-                    } else {
-                        info.setMPXCacheAgentAddress(ca.substring(0, ind));
-                        info.setMPXCacheAgentPort(Integer.parseInt(ca
-                                .substring(ind + 1)));
-                    }
+                    info.setMPXCacheAgentAddress(ca.substring(0, ind));
+                    info.setMPXCacheAgentPort(Integer.parseInt(ca
+                            .substring(ind + 1)));
                 }
             }
-            if (getLogger().isInfoEnabled()) {
-                getLogger().info(
-                        "Connecting to " + host + ':' + port + '/' + project
-                                + '/' + view);
+        }
+
+        info.setHost(host);
+        info.setPort(port);
+        info.setCompression(true);
+        info.setConnectionType(protocol);
+        info.setMPXCacheAgentThreadCount(Integer.parseInt(props.getProperty(
+                PROP_THREADS, PROP_DEFAULT_THREADS)));
+        info.setEnableCacheAgentForFileContent(ca != null);
+        info.setEnableCacheAgentForObjectProperties(ca != null);
+        server = new Server(info);
+        server.connect();
+
+        if ((userName != null) && (password != null)) {
+            if (server.logOn(userName, password) == 0) {
+                throw new ConfigurationException("Failed to login to " + host
+                        + ':' + port + " as user " + userName);
             }
+            cacheLogOnCredentials(server, userName, password);
+        } else if (autoLogOn(server) == 0) {
+            final CredentialHelper h = getGit().getCredentialHelper(
+                    getProtocol(url), host, userName);
 
-            info.setHost(host);
-            info.setPort(port);
-            info.setCompression(true);
-            info.setConnectionType(protocol);
-            info.setMPXCacheAgentThreadCount(Integer.parseInt(props
-                    .getProperty(PROP_THREADS, PROP_DEFAULT_THREADS)));
-            info.setEnableCacheAgentForFileContent(ca != null);
-            info.setEnableCacheAgentForObjectProperties(ca != null);
-            server = new Server(info);
-            server.connect();
+            if (h != null) {
+                final boolean[] approved = new boolean[1];
+                h.getCredentials(new CredentialCallBack() {
+                    @Override
+                    public boolean approve(final String user,
+                            final String password) {
+                        try {
+                            if (server.logOn(user, password) != 0) {
+                                cacheLogOnCredentials(server, user, password);
+                                props.setSessionProperty(PROP_USER, user);
+                                props.setSessionProperty(PROP_PASSWORD,
+                                        password);
+                                return approved[0] = true;
+                            } else {
+                                return approved[0] = false;
+                            }
+                        } catch (final LogonException ex) {
+                            return approved[0] = false;
+                        }
+                    }
+                });
 
-            if ((userName != null) && (password != null)) {
+                if (!approved[0]) {
+                    throw new ConfigurationException("Failed to login to "
+                            + host + ':' + port);
+                }
+            } else {
+                if (userName == null) {
+                    userName = props.getOrRequestProperty(PROP_USER,
+                            "Username: ", false);
+                }
+                if (password == null) {
+                    password = props.getOrRequestProperty(PROP_PASSWORD,
+                            "Password: ", true);
+                }
                 if (server.logOn(userName, password) == 0) {
                     throw new ConfigurationException("Failed to login to "
                             + host + ':' + port + " as user " + userName);
                 }
                 cacheLogOnCredentials(server, userName, password);
-            } else if (autoLogOn(server) == 0) {
-                final CredentialHelper h = getGit().getCredentialHelper(
-                        getProtocol(url), host, userName);
+            }
+        }
 
-                if (h != null) {
-                    final boolean[] approved = new boolean[1];
-                    h.getCredentials(new CredentialCallBack() {
-                        @Override
-                        public boolean approve(final String user,
-                                final String password) {
-                            try {
-                                if (server.logOn(user, password) != 0) {
-                                    cacheLogOnCredentials(server, user,
-                                            password);
-                                    return approved[0] = true;
-                                } else {
-                                    return approved[0] = false;
-                                }
-                            } catch (final LogonException ex) {
-                                return approved[0] = false;
-                            }
-                        }
-                    });
+        return server;
+    }
 
-                    if (!approved[0]) {
-                        throw new ConfigurationException("Failed to login to "
-                                + host + ':' + port);
-                    }
+    public synchronized View connect() {
+        if (_view == null) {
+            final RepoProperties props = getRepoProperties();
+            final StarTeamURL url = getUrl();
+            final String project = url.getProjectName();
+            final String view = getViewName(url);
+            final Server server = getIdleConnection();
+            boolean ok = false;
+
+            try {
+                if (getLogger().isDebugEnabled()) {
+                    final java.io.File dir = new File(props.getGitstDir(),
+                            getBranchName());
+                    dir.mkdirs();
+                    NetMonitor.onFile(new java.io.File(dir, "NetMonitor.log"));
+                }
+
+                if (getLogger().isInfoEnabled()) {
+                    final int port = Integer.parseInt(url.getPort());
+                    final String host = url.getHostName();
+                    getLogger().info(
+                            "Connecting to " + host + ':' + port + '/'
+                                    + project + '/' + view);
+                }
+
+                _view = findView(findProject(server, project), view);
+                _rootFolder = getRootFolder(url, _view);
+                ok = true;
+            } finally {
+                if (ok) {
+                    releaseConnection(server);
                 } else {
-                    if (userName == null) {
-                        userName = props.getOrRequestProperty(PROP_USER,
-                                "Username: ", false);
-                    }
-                    if (password == null) {
-                        password = props.getOrRequestProperty(PROP_PASSWORD,
-                                "Password: ", true);
-                    }
-                    if (server.logOn(userName, password) == 0) {
-                        throw new ConfigurationException("Failed to login to "
-                                + host + ':' + port + " as user " + userName);
-                    }
-                    cacheLogOnCredentials(server, userName, password);
+                    close();
+                    _pool.clear();
                 }
             }
-
-            _view = findView(findProject(server, project), view);
-            _rootFolder = getRootFolder(url, _view);
         }
 
         return _view;
@@ -207,16 +238,9 @@ public class Repo implements AutoCloseable {
     @Override
     public synchronized void close() {
         if (_view != null) {
-            final View view = _view;
             _view = null;
             _rootFolder = null;
-
-            if (_threadPool != null) {
-                _threadPool.shutdown();
-                _threadPool = null;
-            }
-
-            view.getServer().disconnect();
+            _pool.clear();
         }
     }
 
@@ -253,15 +277,6 @@ public class Repo implements AutoCloseable {
             connect();
         }
         return _rootFolder;
-    }
-
-    public synchronized ExecutorService getThreadPool() {
-        if ((_threadPool == null) || _threadPool.isShutdown()) {
-            _threadPool = Executors.newFixedThreadPool(Integer
-                    .parseInt(getRepoProperties().getProperty(PROP_THREADS,
-                            PROP_DEFAULT_THREADS)));
-        }
-        return _threadPool;
     }
 
     public synchronized File getTempDir() throws IOException {
@@ -692,6 +707,19 @@ public class Repo implements AutoCloseable {
             return "starteam:xml";
         default:
             return "starteam";
+        }
+    }
+
+    private final class ConnectionPool extends SimpleObjectPool<Server> {
+
+        @Override
+        protected Server create() {
+            return createNewConnection();
+        }
+
+        @Override
+        protected void destroy(final Server s) {
+            s.disconnect();
         }
     }
 
