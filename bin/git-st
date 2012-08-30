@@ -1,30 +1,32 @@
 #!/bin/bash
 
-DIR=${DIR:-$(dirname "${0}")}
-JAR_NAME="@JAR_NAME@"
-PKG_NAME="com.googlecode.gitst"
-
 if [[ ${OS} = *indows* ]]
 then
-    IS_WINDOWS="true"
-    FILE_EXT=".exe"
+    IS_WINDOWS='true'
+    FILE_EXT='.exe'
     PS=';'
+    SCRIPT_PATH="${0//\\//}"
 else
     PS=':'
-    FILE_EXT=""
+    FILE_EXT=''
+    SCRIPT_PATH="${0}"
 fi
+
+DIR=${DIR:-$(dirname "${SCRIPT_PATH}")}
+JAR_NAME=@JAR_NAME@
+PKG_NAME='com.googlecode.gitst'
 
 if [ -z "${STARTEAM_JAVA_API}" ]
 then
-    echo "System environment variable STARTEAM_JAVA_API is not set." >&2
-    echo "Please set this variable first." >&2
-    echo "Example:" >&2
+    echo 'System environment variable STARTEAM_JAVA_API is not set.' >&2
+    echo 'Please set this variable first.' >&2
+    echo 'Example:' >&2
     
     if [ -z "${IS_WINDOWS}" ]
     then
-        echo "export STARTEAM_JAVA_API=\"/opt/StarTeamCP_2009/lib/starteam110.jar\"" >&2
+        echo 'export STARTEAM_JAVA_API="/opt/StarTeamCP_2009/lib/starteam110.jar"' >&2
     else
-        echo "export STARTEAM_JAVA_API=\"c:/Program Files/Borland/StarTeam SDK 11.0/Lib/starteam110.jar\"" >&2
+        echo 'export STARTEAM_JAVA_API="c:/Program Files/Borland/StarTeam SDK 11.0/Lib/starteam110.jar"' >&2
     fi
     exit 1
 fi
@@ -42,10 +44,10 @@ fi
 
 CLASSPATH="${JAR_PATH}${PS}${STARTEAM_JAVA_API}"
 
-if [ "${OSTYPE}" = "cygwin" ]
+if [ "${OSTYPE}" = 'cygwin' ]
 then 
-    ORIG_IFS=${IFS}
-    IFS=${PS}
+    ORIG_IFS="${IFS}"
+    IFS="${PS}"
     for i in ${CLASSPATH}
     do 
         i=$(cygpath -m "${i}")
@@ -53,35 +55,35 @@ then
         LIBRARY_PATH="${LIBRARY_PATH}${PS}${d}"
         tmpCP="${tmpCP}${PS}${i}"
     done
-    IFS=${ORIG_IFS}
+    IFS="${ORIG_IFS}"
     CLASSPATH="${tmpCP}"
 else
-    ORIG_IFS=${IFS}
-    IFS=${PS}
+    ORIG_IFS="${IFS}"
+    IFS="${PS}"
     for i in ${CLASSPATH}
     do
         LIBRARY_PATH="${LIBRARY_PATH}${PS}$(dirname "${i}")"
     done
-    IFS=${ORIG_IFS}
+    IFS="${ORIG_IFS}"
 fi
 
 if [ -z "${CLASS_NAME}" ]
 then
     case ${1} in
         init)
-            CLASS_NAME="Init"
+            CLASS_NAME='Init'
             ;;
         pull)
-            CLASS_NAME="Pull"
+            CLASS_NAME='Pull'
             ;;
         push)
-            CLASS_NAME="Push"
+            CLASS_NAME='Push'
             ;;
         status)
-            CLASS_NAME="Status"
+            CLASS_NAME='Status'
             ;;
         *)
-            echo "Usage: git st <init|pull|push|status> [-J<JavaArg>]*" >&2
+            echo 'Usage: git st <init|pull|push|status> [-J<JavaArg>]*' >&2
             exit 1
             ;;
     esac

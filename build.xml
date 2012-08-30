@@ -67,7 +67,7 @@
             <fileset dir="${bin.dir}" includes="*" />
             <filterchain>
                 <replacetokens>
-                    <token key="JAR_NAME" value="${jar.name}" />
+                    <token key="JAR_NAME" value="'${jar.name}'" />
                 </replacetokens>
             </filterchain>
         </copy>
@@ -122,7 +122,7 @@
             <fileset dir="${bin.dir}" includes="*" />
             <filterchain>
                 <replacetokens>
-                    <token key="JAR_NAME" value="${jar.name}" />
+                    <token key="JAR_NAME" value="'${jar.name}'" />
                 </replacetokens>
             </filterchain>
         </copy>
