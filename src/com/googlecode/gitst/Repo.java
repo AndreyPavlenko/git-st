@@ -495,6 +495,7 @@ public class Repo implements AutoCloseable {
         co.setOptimizeForSlowConnections(true);
         co.setUpdateStatus(false);
         co.setForceCheckout(true);
+        co.setRestoreFileOnError(false);
         return view.createCheckoutManager(co);
     }
 
