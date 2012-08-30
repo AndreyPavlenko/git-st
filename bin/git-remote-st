@@ -1,5 +1,12 @@
 #!/bin/bash
 
-DIR=$(dirname "${0}")
+if [[ ${OS} = *indows* ]]
+then
+    SCRIPT_PATH="${0//\\//}"
+else
+    SCRIPT_PATH="${0}"
+fi
+
+DIR=${DIR:-$(dirname "${SCRIPT_PATH}")}
 CLASS_NAME="Remote"
 . "${DIR}/git-st"
