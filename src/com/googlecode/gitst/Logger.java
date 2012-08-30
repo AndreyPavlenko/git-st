@@ -5,6 +5,8 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * @author Andrey Pavlenko
@@ -129,9 +131,8 @@ public class Logger {
 
         synchronized (this) {
             final PBar pbar = new PBar(message, total);
-            clearPogress();
             _pbar.add(pbar);
-            printProgress();
+            pbar.start();
             return pbar;
         }
     }
@@ -217,50 +218,76 @@ public class Logger {
         }
     }
 
-    public class PBar implements ProgressBar {
+    public class PBar extends Thread implements ProgressBar {
         private final Object _message;
         private final int _total;
-        private int _done;
-        private boolean _closed;
+        private final AtomicInteger _counter;
         private int _lastMessageLen;
 
         public PBar(final Object message, final int total) {
             _message = message;
             _total = total;
+            _counter = new AtomicInteger(total);
+        }
+
+        @Override
+        public void run() {
+            for (int prev = 0; !isInterrupted();) {
+                final int current = _counter.get();
+
+                if (current <= 0) {
+                    break;
+                } else if (current == prev) {
+                    LockSupport.park();
+                } else {
+                    prev = current;
+
+                    synchronized (Logger.this) {
+                        clearPogress();
+                        printProgress();
+                    }
+                }
+            }
+
+            synchronized (Logger.this) {
+                clearPogress();
+                printProgress();
+                clearPogress();
+                _pbar.remove(this);
+                printProgress();
+            }
         }
 
         @Override
         public void done(final int count) {
-            synchronized (Logger.this) {
-                if (!_closed) {
-                    _done += count;
-                    clearPogress();
-                    printProgress();
+            for (;;) {
+                final int current = _counter.get();
 
-                    if (_done >= _total) {
-                        close();
-                    }
+                if (current <= 0) {
+                    return;
+                }
+
+                final int diff = current - count;
+
+                if (diff < 0) {
+                    _counter.set(0);
+                    LockSupport.unpark(this);
+                } else if (_counter.compareAndSet(current, diff)) {
+                    LockSupport.unpark(this);
+                    return;
                 }
             }
         }
 
         @Override
         public void complete() {
-            synchronized (Logger.this) {
-                done(_total - _done);
-            }
+            _counter.set(0);
+            LockSupport.unpark(this);
         }
 
         @Override
         public void close() {
-            synchronized (Logger.this) {
-                if (!_closed) {
-                    _closed = true;
-                    clearPogress();
-                    _pbar.remove(this);
-                    printProgress();
-                }
-            }
+            complete();
         }
 
         // @GuardedBy("Logger.this")
@@ -271,8 +298,9 @@ public class Logger {
         }
 
         private String createMessage() {
+            final int done = _total - _counter.get();
             return '[' + String.valueOf(_message) + ": "
-                    + ((_done * 100) / _total) + "% (" + _done + '/' + _total
+                    + ((done * 100) / _total) + "% (" + done + '/' + _total
                     + ")]";
         }
     }
