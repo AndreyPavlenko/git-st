@@ -198,6 +198,8 @@ public class Logger {
 
         public void done(int count);
 
+        public void update();
+
         public void complete();
 
         public void close();
@@ -207,6 +209,10 @@ public class Logger {
 
         @Override
         public void done(final int count) {
+        }
+
+        @Override
+        public void update() {
         }
 
         @Override
@@ -222,6 +228,7 @@ public class Logger {
         private final Object _message;
         private final int _total;
         private final AtomicInteger _counter;
+        private volatile boolean _update;
         private int _lastMessageLen;
 
         public PBar(final Object message, final int total) {
@@ -237,10 +244,11 @@ public class Logger {
 
                 if (current <= 0) {
                     break;
-                } else if (current == prev) {
+                } else if (!_update && (current == prev)) {
                     LockSupport.park();
                 } else {
                     prev = current;
+                    _update = false;
 
                     synchronized (Logger.this) {
                         clearPogress();
@@ -277,6 +285,12 @@ public class Logger {
                     return;
                 }
             }
+        }
+
+        @Override
+        public void update() {
+            _update = true;
+            LockSupport.unpark(this);
         }
 
         @Override

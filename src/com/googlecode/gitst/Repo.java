@@ -43,7 +43,9 @@ import com.starbase.starteam.StarTeamFinder;
 import com.starbase.starteam.StarTeamURL;
 import com.starbase.starteam.User;
 import com.starbase.starteam.View;
+import com.starbase.starteam.ViewConfiguration;
 import com.starbase.starteam.vts.comm.NetMonitor;
+import com.starbase.util.OLEDate;
 
 /**
  * @author Andrey Pavlenko
@@ -57,6 +59,7 @@ public class Repo implements AutoCloseable {
     private final RepoProperties _repoProperties;
     private final Logger _logger;
     private final ConnectionPool _pool;
+    private final List<View> _viewCache;
     private final String _branchName;
     private final String _userNamePattern;
     private final Map<String, Folder> _folderCache;
@@ -74,6 +77,7 @@ public class Repo implements AutoCloseable {
         _repoProperties = repoProperties;
         _logger = logger;
         _pool = new ConnectionPool();
+        _viewCache = new ArrayList<>();
         _folderCache = new ConcurrentHashMap<>();
         _fileCache = new ConcurrentHashMap<>();
         //@formatter:off
@@ -241,6 +245,7 @@ public class Repo implements AutoCloseable {
             _view = null;
             _rootFolder = null;
             _pool.clear();
+            _viewCache.clear();
         }
     }
 
@@ -272,11 +277,32 @@ public class Repo implements AutoCloseable {
         return connect();
     }
 
+    public synchronized View getView(final OLEDate configDate) {
+        final double d = configDate.getDoubleValue();
+
+        for (final View v : _viewCache) {
+            final double date = v.getConfiguration().getTime().getDoubleValue();
+
+            if (date == d) {
+                return v;
+            }
+        }
+
+        final View v = new View(getView(),
+                ViewConfiguration.createFromTime(configDate));
+        _viewCache.add(v);
+        return v;
+    }
+
     public synchronized Folder getRootFolder() {
         if (_rootFolder == null) {
             connect();
         }
         return _rootFolder;
+    }
+
+    public Folder getRootFolder(final View v) {
+        return getRootFolder(getUrl(), v);
     }
 
     public synchronized File getTempDir() throws IOException {
@@ -676,10 +702,17 @@ public class Repo implements AutoCloseable {
         return f;
     }
 
-    private static int autoLogOn(final Server server) {
+    private int autoLogOn(final Server server) {
         try {
-            return server.autoLogOn();
+            // Without synchronized autoLogOn() sometimes fails on concurrent
+            // access.
+            synchronized (Repo.class) {
+                return server.autoLogOn();
+            }
         } catch (final Throwable ex) {
+            if (_logger.isDebugEnabled()) {
+                _logger.error(ex.getMessage(), ex);
+            }
             return 0;
         }
     }
@@ -738,10 +771,15 @@ public class Repo implements AutoCloseable {
 
         private static void delete(final File file) {
             if (file.isDirectory()) {
-                for (final File f : file.listFiles()) {
-                    delete(f);
+                final File[] files = file.listFiles();
+
+                if (files != null) {
+                    for (final File f : files) {
+                        delete(f);
+                    }
                 }
             }
+
             file.delete();
         }
     }

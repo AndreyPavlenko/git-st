@@ -30,7 +30,8 @@
                destdir="${build.classes.dir}"
                debug="true"
                debuglevel="lines,vars,source"
-               includeantruntime="false">
+               includeantruntime="false"
+               excludes="com/starteam/**">
             <classpath>
                 <path path="${env.STARTEAM_JAVA_API}" />
             </classpath>
@@ -47,7 +48,20 @@
         </copy>
     </target>
 
-    <target name="jar" depends="compile">
+    <target name="compile12" if="env.STARTEAM_JAVA_API12">
+        <javac srcdir="${src.dir}"
+               destdir="${build.classes.dir}"
+               debug="true"
+               debuglevel="lines,vars,source"
+               includeantruntime="false"
+               includes="com/starteam/**">
+            <classpath>
+                <path path="${env.STARTEAM_JAVA_API12}" />
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="jar" depends="compile, compile12">
         <dirname property="jar.dir" file="${jar.file}" />
         <mkdir dir="${jar.dir}" />
         <jar destfile="${jar.file}"

@@ -7,24 +7,20 @@ import com.starbase.starteam.File;
  */
 public class RemoteFile {
     private final File _file;
-    private final int _rev;
+    private final String _version;
 
     public RemoteFile(final File file) {
         _file = file;
-        _rev = file.getRevisionNumber();
+        _version = file.getDotNotation();
     }
 
     @Override
     public int hashCode() {
-        return _file.getID() | (_rev << 24);
+        return _file.getID() | _version.hashCode();
     }
 
     public File get() {
         return _file;
-    }
-
-    public int getRevision() {
-        return _rev;
     }
 
     @Override
@@ -34,7 +30,7 @@ public class RemoteFile {
         }
         if (obj instanceof RemoteFile) {
             final RemoteFile f = (RemoteFile) obj;
-            return get().equals(f.get()) && (getRevision() == f.getRevision());
+            return get().equals(f.get()) && (_version.equals(f._version));
         }
         return false;
     }

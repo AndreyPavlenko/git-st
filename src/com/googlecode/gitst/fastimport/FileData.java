@@ -42,6 +42,9 @@ public class FileData implements FastimportCommand {
     }
 
     public synchronized void setCheckout(final java.io.File checkout) {
+        if (checkout == null) {
+            throw new NullPointerException();
+        }
         _checkout = checkout;
         notifyAll();
     }
