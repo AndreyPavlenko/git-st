@@ -93,15 +93,18 @@ fi
 declare -a ARGS
 declare -a JVM_ARGS
 
-for i in "$@"
+for i in "$@" "${GITST_OPTS}"
 do
     if [[ $i = -J* ]]
     then
         JVM_ARGS[${#JVM_ARGS[@]}]="${i:2}"
+        [[ "${i}" = -J-Xmx* ]] && SKIP_MX_ARG="true"
     else
         ARGS[${#ARGS[@]}]="${i}"
     fi
 done
+
+[ -z "${SKIP_MX_ARG}" ] && JVM_ARGS[${#JVM_ARGS[@]}]="-Xmx1g"
 
 if [ ! -z "${JAVA7_HOME}" ] && [ -f "${JAVA7_HOME}/bin/java${FILE_EXT}" ]
 then
@@ -113,4 +116,5 @@ else
     JAVA="java"
 fi
 
+echo  "$JAVA" -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
 exec "$JAVA" -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
