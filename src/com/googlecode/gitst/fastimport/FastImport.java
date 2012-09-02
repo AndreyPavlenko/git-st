@@ -144,10 +144,8 @@ public class FastImport {
         return vListener.getCommits();
     }
 
-    public void submit(final Collection<Commit> commits) throws IOException,
-            InterruptedException, ExecutionException {
-        _log.info("Executing git fast-import");
-        _log.info("");
+    public void submit(final Collection<Commit> commits, final boolean verbose)
+            throws IOException, InterruptedException, ExecutionException {
         final Repo repo = getRepo();
         final Git git = repo.getGit();
         final Exec exec = git.fastImport(repo.getBranchName()).exec();
@@ -156,7 +154,7 @@ public class FastImport {
         final OutputStream out = proc.getOutputStream();
 
         try {
-            submit(commits, out);
+            submit(commits, out, verbose);
             out.close();
 
             if (exec.waitFor() != 0) {
@@ -169,8 +167,9 @@ public class FastImport {
         }
     }
 
-    public void submit(final Collection<Commit> commits, final OutputStream out)
-            throws IOException, InterruptedException, ExecutionException {
+    public void submit(final Collection<Commit> commits,
+            final OutputStream out, final boolean verbose) throws IOException,
+            InterruptedException, ExecutionException {
         final Repo repo = getRepo();
         final long time = System.currentTimeMillis();
         final String branch = repo.getBranchName();
@@ -196,7 +195,7 @@ public class FastImport {
             cmt.setBranch(branch);
             cmt.setCommitter(committer);
 
-            if (_log.isInfoEnabled()) {
+            if (verbose && _log.isInfoEnabled()) {
                 _log.info(cmt);
                 _log.info("--------------------------------------------------------------------------------");
             }
@@ -206,10 +205,12 @@ public class FastImport {
         }
 
         out.flush();
-        _log.info("");
+        if (verbose) {
+            _log.info("");
+        }
         threadPool.shutdown();
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        b.close();
+        b.complete();
 
         if (_log.isDebugEnabled()) {
             _log.debug("Imported in " + (System.currentTimeMillis() - time)
@@ -231,7 +232,7 @@ public class FastImport {
 
                     if (items.size() > 0) {
                         Utils.checkout(repo, items, l);
-                        l._pbar.close();
+                        l._pbar.complete();
                     }
                 } catch (final Throwable ex) {
                     getRepo().getLogger().error("Checkout failed", ex);
@@ -284,12 +285,15 @@ public class FastImport {
         ExecutorService threadPool = createThreadPool((count * 3) / 1000);
         ProgressBar pb = _log.createProgressBar("Loading files history", count);
 
+        if (!_log.isProgressBarSupported()) {
+            _log.info("Loading files history");
+        }
+
         time = System.currentTimeMillis();
-        _log.info("Loading files history");
         loadHistory(filter, commits, rootFolder, threadPool, pb, history, list);
         threadPool.shutdown();
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        pb.close();
+        pb.complete();
 
         if (_log.isDebugEnabled()) {
             _log.debug("Files history loaded in "
@@ -297,16 +301,19 @@ public class FastImport {
         }
 
         if (!skipDeleted) {
+            if (!_log.isProgressBarSupported()) {
+                _log.info("Loading deleted files history");
+            }
+
             threadPool = createThreadPool((recycleCount * 6) / 1000);
             pb = _log.createProgressBar("Loading deleted files history",
                     recycleCount);
-            _log.info("Loading deleted files history");
             time = System.currentTimeMillis();
             loadHistory(filter, commits, recycleRootFolder, threadPool, pb,
                     history, list);
             threadPool.shutdown();
             threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-            pb.close();
+            pb.complete();
 
             if (_log.isDebugEnabled()) {
                 _log.debug("Deleted files history loaded in "

@@ -125,12 +125,17 @@ public class Logger {
     }
 
     public ProgressBar createProgressBar(final Object message, final int total) {
+        return createProgressBar(message, total, false);
+    }
+
+    public ProgressBar createProgressBar(final Object message, final int total,
+            final boolean closeOnComplete) {
         if (!isProgressBarSupported() || (total == 0)) {
             return new DummyProgressBar();
         }
 
         synchronized (this) {
-            final PBar pbar = new PBar(message, total);
+            final PBar pbar = new PBar(message, total, closeOnComplete);
             _pbar.add(pbar);
             pbar.start();
             return pbar;
@@ -228,12 +233,15 @@ public class Logger {
         private final Object _message;
         private final int _total;
         private final AtomicInteger _counter;
+        private volatile boolean _closeOnComplete;
         private volatile boolean _update;
         private int _lastMessageLen;
 
-        public PBar(final Object message, final int total) {
+        public PBar(final Object message, final int total,
+                final boolean closeOnComplete) {
             _message = message;
             _total = total;
+            _closeOnComplete = closeOnComplete;
             _counter = new AtomicInteger(total);
         }
 
@@ -262,6 +270,12 @@ public class Logger {
                 printProgress();
                 clearPogress();
                 _pbar.remove(this);
+
+                if (!_closeOnComplete) {
+                    printMessage();
+                    _logWriter.println();
+                }
+
                 printProgress();
             }
         }
@@ -297,11 +311,16 @@ public class Logger {
         public void complete() {
             _counter.set(0);
             LockSupport.unpark(this);
+            try {
+                join();
+            } catch (final InterruptedException ex) {
+            }
         }
 
         @Override
         public void close() {
-            complete();
+            _closeOnComplete = true;
+            interrupt();
         }
 
         // @GuardedBy("Logger.this")

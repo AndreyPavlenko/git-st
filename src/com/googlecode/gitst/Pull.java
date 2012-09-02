@@ -113,8 +113,8 @@ public class Pull {
         final String lastPull = props.getMetaProperty(META_PROP_LAST_PULL_DATE);
         final Map<CommitId, Commit> commits;
 
-        // Initial import
         if (lastPull == null) {
+            // Initial import
             commits = fastImport.loadChanges(endDate);
         } else {
             final OLEDate startDate = new OLEDate(Double.parseDouble(lastPull));
@@ -124,16 +124,12 @@ public class Pull {
         if (commits.isEmpty()) {
             _log.info("No changes found");
         } else if (dryRun) {
-            _log.info("");
-            _log.info("Executing git fast-import");
-            _log.info("");
             dryRun(commits);
         } else {
-            _log.info("");
             if (out == null) {
-                fastImport.submit(commits.values());
+                fastImport.submit(commits.values(), lastPull != null);
             } else {
-                fastImport.submit(commits.values(), out);
+                fastImport.submit(commits.values(), out, lastPull != null);
             }
         }
 
