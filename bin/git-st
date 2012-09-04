@@ -116,5 +116,4 @@ else
     JAVA="java"
 fi
 
-echo  "$JAVA" -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
 exec "$JAVA" -cp "${CLASSPATH}" "-Djava.library.path=${LIBRARY_PATH}" "${JVM_ARGS[@]}" "${PKG_NAME}.${CLASS_NAME}" "${ARGS[@]}"
