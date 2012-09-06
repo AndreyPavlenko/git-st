@@ -290,7 +290,8 @@ public class FastImport {
         }
 
         time = System.currentTimeMillis();
-        loadHistory(filter, commits, rootFolder, threadPool, pb, history, list);
+        loadHistory(filter, commits, rootFolder, threadPool, pb, history, list,
+                false);
         threadPool.shutdown();
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         pb.complete();
@@ -310,7 +311,7 @@ public class FastImport {
                     recycleCount);
             time = System.currentTimeMillis();
             loadHistory(filter, commits, recycleRootFolder, threadPool, pb,
-                    history, list);
+                    history, list, true);
             threadPool.shutdown();
             threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
             pb.complete();
@@ -338,13 +339,14 @@ public class FastImport {
     private void loadHistory(final ItemFilter filter,
             final ConcurrentMap<CommitId, Commit> commits, final Folder folder,
             final ExecutorService threadPool, final ProgressBar pb,
-            final List<Item[]> history, final ItemList list) {
+            final List<Item[]> history, final ItemList list,
+            final boolean isRecycle) {
         final Repo repo = getRepo();
         final Thread main = Thread.currentThread();
         final Item[] files = folder.getItems("File");
         final Folder[] folders = folder.getSubFolders();
 
-        if ((files.length == 0) && (folders.length == 0)) {
+        if (!isRecycle && (files.length == 0) && (folders.length == 0)) {
             createEmptyDir(filter, commits, folder, false);
         }
 
@@ -374,7 +376,8 @@ public class FastImport {
         }
 
         for (final Folder f : folders) {
-            loadHistory(filter, commits, f, threadPool, pb, history, list);
+            loadHistory(filter, commits, f, threadPool, pb, history, list,
+                    isRecycle);
         }
 
         if (folder.isDeleted()) {
