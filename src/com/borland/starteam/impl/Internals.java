@@ -60,7 +60,6 @@ public class Internals {
                 c.execCommand(cmd);
                 pop(cmd);
                 c.terminateCommand(cmd);
-            } catch (final CommandAbortedException ex) {
             } catch (final IOException ex) {
                 throw new RuntimeException(ex);
             } finally {
