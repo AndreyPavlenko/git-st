@@ -2,13 +2,13 @@ package com.googlecode.gitst;
 
 import static com.googlecode.gitst.RepoProperties.PROP_CA;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_IGNORE;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_THREADS;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXTHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_CATHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXCONNECTIONS;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_FETCH;
 import static com.googlecode.gitst.RepoProperties.PROP_IGNORE;
-import static com.googlecode.gitst.RepoProperties.PROP_THREADS;
-import static com.googlecode.gitst.RepoProperties.PROP_MAXTHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_CATHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_MAXCONNECTIONS;
 import static com.googlecode.gitst.RepoProperties.PROP_URL;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
 
@@ -39,7 +39,7 @@ public class Init {
                 final String ca = a.get("-ca", null);
                 final String ignore = a.get("-i", PROP_DEFAULT_IGNORE);
                 final String up = a.get("-up", PROP_DEFAULT_USER_PATTERN);
-                final String t = a.get("-t", PROP_DEFAULT_THREADS);
+                final String t = a.get("-t", PROP_DEFAULT_CATHREADS);
                 final File dir = new File(a.get("-d", "."));
                 final StringBuilder sb = new StringBuilder("st::starteam://");
                 final String url;
@@ -75,7 +75,7 @@ public class Init {
                 final Git git = new Git(dir);
                 final RepoProperties props = new RepoProperties(git, "origin");
                 props.setLocalProperty(PROP_URL, url);
-                props.setLocalProperty(PROP_THREADS,
+                props.setLocalProperty(PROP_CATHREADS,
                         String.valueOf(Integer.parseInt(t)));
                 props.setLocalProperty(PROP_USER_PATTERN, up);
                 props.setLocalProperty(PROP_IGNORE, ignore);
@@ -105,11 +105,12 @@ public class Init {
         props.setLocalProperty(PROP_FETCH, "+refs/heads/" + branch
                 + ":refs/remotes/origin/master");
 
-        if (props.getProperty(PROP_THREADS, null) == null) {
-            props.setLocalProperty(PROP_THREADS, PROP_DEFAULT_THREADS);
+        if (props.getProperty(PROP_CATHREADS, null) == null) {
+            props.setLocalProperty(PROP_CATHREADS, PROP_DEFAULT_CATHREADS);
         }
-        if (props.getProperty(PROP_MAXTHREADS, null) == null) {
-            props.setLocalProperty(PROP_MAXTHREADS, PROP_DEFAULT_MAXTHREADS);
+        if (props.getProperty(PROP_MAXCONNECTIONS, null) == null) {
+            props.setLocalProperty(PROP_MAXCONNECTIONS,
+                    PROP_DEFAULT_MAXCONNECTIONS);
         }
         if (props.getProperty(PROP_USER_PATTERN, null) == null) {
             props.setLocalProperty(PROP_USER_PATTERN, PROP_DEFAULT_USER_PATTERN);

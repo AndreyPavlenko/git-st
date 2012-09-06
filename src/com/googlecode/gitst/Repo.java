@@ -2,11 +2,11 @@ package com.googlecode.gitst;
 
 import static com.googlecode.gitst.RepoProperties.PROP_CA;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_IGNORE;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_THREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_CATHREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_IGNORE;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
-import static com.googlecode.gitst.RepoProperties.PROP_THREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_CATHREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_URL;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
@@ -136,7 +136,7 @@ public class Repo implements AutoCloseable {
         info.setCompression(true);
         info.setConnectionType(protocol);
         info.setMPXCacheAgentThreadCount(Integer.parseInt(props.getProperty(
-                PROP_THREADS, PROP_DEFAULT_THREADS)));
+                PROP_CATHREADS, PROP_DEFAULT_CATHREADS)));
         info.setEnableCacheAgentForFileContent(ca != null);
         info.setEnableCacheAgentForObjectProperties(ca != null);
         server = new Server(info);

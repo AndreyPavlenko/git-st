@@ -1,18 +1,11 @@
 package com.googlecode.gitst;
 
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXTHREADS;
-import static com.googlecode.gitst.RepoProperties.PROP_MAXTHREADS;
-
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import com.borland.starteam.impl.Internals;
 import com.starbase.starteam.CheckoutListener;
@@ -144,34 +137,10 @@ public class Utils {
             l.add(set);
         }
 
-        final Thread main = Thread.currentThread();
-        final ExecutorService threadPool = createThreadPool(repo, l.size() - 1);
-
         for (final Set<Item> set : l) {
-            try {
-                final CheckoutManager mgr = repo.createCheckoutManager();
-                mgr.addCheckoutListener(listener);
-                mgr.checkout(set.toArray(new Item[set.size()]));
-            } catch (final Throwable ex) {
-                repo.getLogger().error(ex.getMessage(), ex);
-                main.interrupt();
-            }
+            final CheckoutManager mgr = repo.createCheckoutManager();
+            mgr.addCheckoutListener(listener);
+            mgr.checkout(set.toArray(new Item[set.size()]));
         }
-
-        threadPool.shutdown();
-        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.HOURS);
-    }
-
-    private static ExecutorService createThreadPool(final Repo repo, int t) {
-        if (t <= 0) {
-            t = 1;
-        }
-
-        final RepoProperties props = repo.getRepoProperties();
-        final int maxt = Integer.parseInt(props.getProperty(PROP_MAXTHREADS,
-                PROP_DEFAULT_MAXTHREADS));
-        return new ThreadPoolExecutor(0, Math.min(t, maxt), 1, TimeUnit.HOURS,
-                new SynchronousQueue<Runnable>(),
-                new ThreadPoolExecutor.CallerRunsPolicy());
     }
 }

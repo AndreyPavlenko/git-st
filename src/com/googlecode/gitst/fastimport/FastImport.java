@@ -1,8 +1,8 @@
 package com.googlecode.gitst.fastimport;
 
 import static com.googlecode.gitst.RepoProperties.META_PROP_ITEM_FILTER;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXTHREADS;
-import static com.googlecode.gitst.RepoProperties.PROP_MAXTHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_MAXCONNECTIONS;
+import static com.googlecode.gitst.RepoProperties.PROP_MAXCONNECTIONS;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -246,6 +246,9 @@ public class FastImport {
             final ConcurrentMap<CommitId, Commit> commits)
             throws InterruptedException {
         final Repo repo = getRepo();
+        final RepoProperties props = repo.getRepoProperties();
+        final int maxc = Integer.parseInt(props.getProperty(
+                PROP_MAXCONNECTIONS, PROP_DEFAULT_MAXCONNECTIONS));
         final Folder rootFolder = repo.getRootFolder();
         Folder recycleRootFolder = null;
         final boolean skipDeleted = "true".equalsIgnoreCase(System
@@ -282,7 +285,8 @@ public class FastImport {
 
         final List<Item[]> history = new Vector<>(count + recycleCount);
         final ItemList list = new ItemList();
-        ExecutorService threadPool = createThreadPool((count * 3) / 1000);
+        ExecutorService threadPool = createThreadPool(Math.min(maxc,
+                (count * 3) / 1000));
         ProgressBar pb = _log.createProgressBar("Loading files history", count);
 
         if (!_log.isProgressBarSupported()) {
@@ -306,7 +310,8 @@ public class FastImport {
                 _log.info("Loading deleted files history");
             }
 
-            threadPool = createThreadPool((recycleCount * 6) / 1000);
+            threadPool = createThreadPool(Math.min(maxc,
+                    (recycleCount * 6) / 1000));
             pb = _log.createProgressBar("Loading deleted files history",
                     recycleCount);
             time = System.currentTimeMillis();
@@ -480,16 +485,8 @@ public class FastImport {
         }
     }
 
-    private ExecutorService createThreadPool(int t) {
-        if (t <= 0) {
-            t = 1;
-        }
-
-        final Repo repo = getRepo();
-        final RepoProperties props = repo.getRepoProperties();
-        final int maxt = Integer.parseInt(props.getProperty(PROP_MAXTHREADS,
-                PROP_DEFAULT_MAXTHREADS));
-        return new ThreadPoolExecutor(0, Math.min(t, maxt), 60L,
+    private static ExecutorService createThreadPool(final int t) {
+        return new ThreadPoolExecutor(0, (t <= 0) ? 1 : t, 60L,
                 TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }
