@@ -2,6 +2,7 @@ package com.googlecode.gitst.fastexport;
 
 import static com.googlecode.gitst.RepoProperties.META_PROP_LAST_PUSH_SHA;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
@@ -32,12 +33,13 @@ public class FastExport {
         return _repo;
     }
 
-    public Map<Integer, Commit> loadChanges() throws ExecutionException,
-            InterruptedException, IOException, UnsupportedCommandException {
+    public Map<Integer, Commit> loadChanges(final File exportMarks)
+            throws ExecutionException, InterruptedException, IOException,
+            UnsupportedCommandException {
         final Repo repo = getRepo();
         final Git git = repo.getGit();
         final String branch = repo.getBranchName();
-        final Exec exec = git.fastExport(branch).exec();
+        final Exec exec = git.fastExport(branch, exportMarks).exec();
         final Process proc = exec.getProcess();
 
         try {

@@ -102,49 +102,40 @@ public class Push {
         final Repo repo = getRepo();
         final Git git = repo.getGit();
         final String branch = repo.getBranchName();
-        final Marks marks = git.loadMarks(branch);
+        final File exportMarks = repo.createTempFile("export.marks");
         final FastExport exp = new FastExport(repo);
-        boolean ok = false;
+        final Map<Integer, Commit> commits = exp.loadChanges(exportMarks);
+        OLEDate startDate = null;
 
-        try {
-            OLEDate startDate = null;
-            final Map<Integer, Commit> commits = exp.loadChanges();
-
-            if (commits.isEmpty()) {
-                repo.getLogger().info("No changes found");
-            } else if (dryRun) {
-                for (final Commit cmt : commits.values()) {
-                    _log.info(cmt);
-                    _log.info("--------------------------------------------------------------------------------");
-                }
-            } else {
-                startDate = repo.getServer().getCurrentTime();
-                exp.submit(commits);
+        if (commits.isEmpty()) {
+            repo.getLogger().info("No changes found");
+        } else if (dryRun) {
+            for (final Commit cmt : commits.values()) {
+                _log.info(cmt);
+                _log.info("--------------------------------------------------------------------------------");
             }
-            if (_log.isInfoEnabled()) {
-                time = (System.currentTimeMillis() - time) / 1000;
-                _log.info("Total time: "
-                        + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
-                                + (time % 60) + "s"));
-            }
-            if (!dryRun && (startDate != null)) {
-                final RepoProperties props = repo.getRepoProperties();
-                final ItemFilter filter = new ItemFilter(
-                        props.getMetaProperty(META_PROP_ITEM_FILTER));
-                final OLEDate endDate = repo.getServer().getCurrentTime();
-                final int user = repo.getServer().getMyUserAccount().getID();
-                filter.add(user, startDate.getDoubleValue(),
-                        endDate.getDoubleValue());
-                props.setMetaProperty(META_PROP_ITEM_FILTER, filter.toString());
-                props.setMetaProperty(META_PROP_LAST_PUSH_SHA,
-                        git.showRef(branch));
-                props.saveMeta();
-            }
-            ok = true;
-        } finally {
-            if (!ok || dryRun) {
-                marks.store(git.getMarksFile(branch));
-            }
+        } else {
+            startDate = repo.getServer().getCurrentTime();
+            exp.submit(commits);
+        }
+        if (_log.isInfoEnabled()) {
+            time = (System.currentTimeMillis() - time) / 1000;
+            _log.info("Total time: "
+                    + ((time / 3600) + "h:" + ((time % 3600) / 60) + "m:"
+                            + (time % 60) + "s"));
+        }
+        if (!dryRun && (startDate != null)) {
+            final RepoProperties props = repo.getRepoProperties();
+            final ItemFilter filter = new ItemFilter(
+                    props.getMetaProperty(META_PROP_ITEM_FILTER));
+            final OLEDate endDate = repo.getServer().getCurrentTime();
+            final int user = repo.getServer().getMyUserAccount().getID();
+            filter.add(user, startDate.getDoubleValue(),
+                    endDate.getDoubleValue());
+            props.setMetaProperty(META_PROP_ITEM_FILTER, filter.toString());
+            props.setMetaProperty(META_PROP_LAST_PUSH_SHA, git.showRef(branch));
+            props.saveMeta();
+            new Marks(exportMarks).store(git.getMarksFile(branch));
         }
     }
 

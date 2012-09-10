@@ -171,20 +171,20 @@ public class Git {
         return exec(l);
     }
 
-    public Exec fastExport(final String branch, final String... args) {
+    public Exec fastExport(final String branch, final File exportMarks,
+            final String... args) {
         final List<String> l = new ArrayList<>(args == null ? 6
                 : 6 + args.length);
-        final File f = getMarksFile(branch);
-        final String marks = f.getAbsolutePath();
+        final File importMarks = getMarksFile(branch);
         Exec exec;
 
         l.add("fast-export");
         l.add("--no-data");
         l.add("-M");
-        l.add("--export-marks=" + marks);
+        l.add("--export-marks=" + exportMarks.getAbsolutePath());
 
-        if (f.exists()) {
-            l.add("--import-marks=" + marks);
+        if (importMarks.exists()) {
+            l.add("--import-marks=" + importMarks.getAbsolutePath());
         }
         if (args != null) {
             for (final String a : args) {
@@ -193,7 +193,6 @@ public class Git {
         }
 
         l.add(branch);
-        f.getParentFile().mkdirs();
         exec = exec(l);
         exec.setOutStream(null);
         return exec;
