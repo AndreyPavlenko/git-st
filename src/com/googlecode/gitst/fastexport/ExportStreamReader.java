@@ -240,7 +240,7 @@ public class ExportStreamReader {
                 count += i;
             }
 
-            commit.setComment(new String(b, cs));
+            commit.setComment(new String(b, cs).trim());
             return null;
         }
     }

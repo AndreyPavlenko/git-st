@@ -50,7 +50,7 @@ public class FastExport {
                                 + proc.exitValue(), proc.exitValue());
             }
 
-            return filter(commits);
+            return commits;
         } finally {
             proc.destroy();
         }
@@ -63,7 +63,7 @@ public class FastExport {
         final ExportStreamReader r = new ExportStreamReader(repo,
                 new StreamReader(in));
         final Map<Integer, Commit> commits = r.readCommits();
-        return commits;
+        return filter(commits);
     }
 
     public void submit(final Map<Integer, Commit> commits) throws IOException,
@@ -96,8 +96,8 @@ public class FastExport {
             throws InterruptedException, IOException, ExecutionException {
         final Repo repo = getRepo();
         final Git git = repo.getGit();
-        final String sha = repo.getRepoProperties().getProperty(
-                META_PROP_LAST_PUSH_SHA, null);
+        final String sha = repo.getRepoProperties().getMetaProperty(
+                META_PROP_LAST_PUSH_SHA);
 
         if (sha == null) {
             return commits;
