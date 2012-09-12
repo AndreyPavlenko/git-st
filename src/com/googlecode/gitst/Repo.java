@@ -552,7 +552,7 @@ public class Repo implements AutoCloseable {
             path.insert(0, '/').insert(0, f.getName());
         }
 
-        return path.toString();
+        return path.toString().intern();
     }
 
     public static String quotePath(final String path) {

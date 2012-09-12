@@ -456,7 +456,7 @@ public class FastImport {
                         prev = h;
                     }
 
-                    if (deleted) {
+                    if (deleted && isNotRestored(itemHistory[0])) {
                         final int user = itemHistory[0].getDeletedUserID();
                         final OLEDate date = itemHistory[0].getDeletedTime();
 
@@ -482,6 +482,16 @@ public class FastImport {
         if (_log.isDebugEnabled()) {
             _log.debug("History processed in "
                     + (System.currentTimeMillis() - time) + " ms.");
+        }
+    }
+
+    private boolean isNotRestored(final Item deletedItem) {
+        final Repo repo = getRepo();
+
+        if (deletedItem instanceof File) {
+            return repo.getFile(repo.getPath(deletedItem)) == null;
+        } else {
+            return repo.getFolder(repo.getPath(deletedItem)) == null;
         }
     }
 
@@ -529,7 +539,7 @@ public class FastImport {
             final Item item, final boolean verbose) {
         final int user = item.getDeletedUserID();
 
-        if (!filter.apply(user, date.getDoubleValue())) {
+        if (!filter.apply(user, date.getDoubleValue()) && isNotRestored(item)) {
             final long time = date.getLongValue();
             final FileDelete c = new FileDelete(item, getRepo().getPath(item));
             final Commit cmt = getCommit(commits, user, time);
