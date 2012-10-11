@@ -1,12 +1,12 @@
 package com.googlecode.gitst;
 
 import static com.googlecode.gitst.RepoProperties.PROP_CA;
-import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_IGNORE;
+import static com.googlecode.gitst.RepoProperties.PROP_CATHREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_CATHREADS;
+import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_IGNORE;
 import static com.googlecode.gitst.RepoProperties.PROP_DEFAULT_USER_PATTERN;
 import static com.googlecode.gitst.RepoProperties.PROP_IGNORE;
 import static com.googlecode.gitst.RepoProperties.PROP_PASSWORD;
-import static com.googlecode.gitst.RepoProperties.PROP_CATHREADS;
 import static com.googlecode.gitst.RepoProperties.PROP_URL;
 import static com.googlecode.gitst.RepoProperties.PROP_USER;
 import static com.googlecode.gitst.RepoProperties.PROP_USER_PATTERN;
@@ -19,9 +19,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.text.DateFormat;
 import java.text.MessageFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,8 +52,7 @@ public class Repo implements AutoCloseable {
     private static final String FOOTER_START = "----------------------------------- StarTeam -----------------------------------";
     private static final String FOOTER_END = "--------------------------------------------------------------------------------";
     public static final String LS = System.getProperty("line.separator");
-    public static final DateFormat DATE_FORMAT = new SimpleDateFormat(
-            "dd.MM.yy HH:mm:ss");
+    public static final String DATE_FORMAT = "dd.MM.yy HH:mm:ss";
     private final RepoProperties _repoProperties;
     private final Logger _logger;
     private final ConnectionPool _pool;

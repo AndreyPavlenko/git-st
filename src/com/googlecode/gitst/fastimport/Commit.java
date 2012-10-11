@@ -18,7 +18,6 @@ import com.googlecode.gitst.Repo;
  * @author Andrey Pavlenko
  */
 public class Commit implements FastimportCommand {
-    private final static SimpleDateFormat DATEFORMAT = new SimpleDateFormat("Z");
     private final CommitId _id;
     private final Queue<FileChange> _changes;
     private String _branch;
@@ -125,7 +124,7 @@ public class Commit implements FastimportCommand {
             s.print(' ');
             s.print(time / 1000);
             s.print(' ');
-            s.print(DATEFORMAT.format(time));
+            s.print(new SimpleDateFormat("Z").format(time));
             s.print('\n');
         }
 
@@ -148,7 +147,8 @@ public class Commit implements FastimportCommand {
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         final String comment = getComment();
-        sb.append(Repo.DATE_FORMAT.format(getId().getTime()));
+        sb.append(new SimpleDateFormat(Repo.DATE_FORMAT).format(getId()
+                .getTime()));
         sb.append(' ');
         sb.append(getCommitter()).append(LS);
         sb.append(comment);

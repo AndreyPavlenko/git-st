@@ -3,6 +3,7 @@ package com.googlecode.gitst.fastexport;
 import static com.googlecode.gitst.Repo.LS;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,9 +11,9 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import com.googlecode.gitst.Logger;
+import com.googlecode.gitst.Logger.ProgressBar;
 import com.googlecode.gitst.RemoteFile;
 import com.googlecode.gitst.Repo;
-import com.googlecode.gitst.Logger.ProgressBar;
 import com.starbase.starteam.CheckinEvent;
 import com.starbase.starteam.CheckinListener;
 import com.starbase.starteam.CheckinManager;
@@ -138,7 +139,7 @@ public class Commit implements FastExportCommand {
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         final String comment = getComment();
-        sb.append(Repo.DATE_FORMAT.format(getDate()));
+        sb.append(new SimpleDateFormat(Repo.DATE_FORMAT).format(getDate()));
         sb.append(' ');
         sb.append(getCommitter()).append(LS);
         sb.append(comment);

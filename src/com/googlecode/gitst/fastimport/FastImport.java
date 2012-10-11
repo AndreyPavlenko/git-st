@@ -7,6 +7,7 @@ import static com.googlecode.gitst.RepoProperties.PROP_MAXCONNECTIONS;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -580,7 +581,8 @@ public class FastImport {
 
     private void logChange(final long time, final Object msg) {
         if (_log.isInfoEnabled()) {
-            _log.info(Repo.DATE_FORMAT.format(time) + "| " + msg);
+            _log.info(new SimpleDateFormat(Repo.DATE_FORMAT).format(time)
+                    + "| " + msg);
         }
     }
 
