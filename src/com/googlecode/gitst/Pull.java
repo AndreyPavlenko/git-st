@@ -126,10 +126,12 @@ public class Pull {
         } else if (dryRun) {
             dryRun(commits);
         } else {
+            final boolean verbose = (lastPull != null) || _log.isDebugEnabled();
+
             if (out == null) {
-                fastImport.submit(commits.values(), lastPull != null);
+                fastImport.submit(commits.values(), verbose);
             } else {
-                fastImport.submit(commits.values(), out, lastPull != null);
+                fastImport.submit(commits.values(), out, verbose);
             }
         }
 
