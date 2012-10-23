@@ -72,8 +72,11 @@ public class FileRename extends FileChange {
         final FileModify mod = getFileModify();
 
         if (mod != null) {
-            // Git performs rename detection.
-            new FileDelete(getSourceItem(), getSourcePath()).write(repo, s);
+            if (repo.getFile(getSourcePath()) == null) {
+                // Git performs rename detection.
+                new FileDelete(getSourceItem(), getSourcePath()).write(repo, s);
+            }
+
             mod.write(repo, s);
         } else {
             s.print("R ");
