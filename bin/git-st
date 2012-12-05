@@ -12,8 +12,8 @@ else
     SCRIPT_PATH="${0}"
 fi
 
-DIR=${DIR:-$(dirname "${SCRIPT_PATH}")}
-JAR_NAME=@JAR_NAME@
+: ${DIR:="$(dirname "${SCRIPT_PATH}")"}
+JAR_NAME='git-st.jar'
 PKG_NAME='com.googlecode.gitst'
 
 if [ -z "${STARTEAM_JAVA_API}" ]

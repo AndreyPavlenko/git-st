@@ -3,8 +3,11 @@
     <property name="project.name" value="${ant.project.name}" />
     <property name="symbolic.name" value="com.googlecode.gitst" />
     <property name="project.version" value="1.0.0" />
+    <tstamp>
+        <format property="build.date" pattern="dd.MM.yy" />
+    </tstamp>
 
-    <property name="src.dir" location="${project.dir}/src" />
+    <property name="src.dir" location="${project.dir}/src/java" />
     <property name="build.dir" location="${project.dir}/build" />
     <property name="build.classes.dir" location="${build.dir}/classes" />
     <property name="bin.dir" location="${project.dir}/bin" />
@@ -13,18 +16,17 @@
     <property name="jar.name" value="${project.name}.jar" />
     <property name="jar.file" location="${build.dir}/${jar.name}" />
     <property name="assemble.dir" location="${build.dir}/assemble" />
-    <property name="distrib.dir" location="${build.dir}/distrib" />
+    <property name="distrib.dir" location="${project.dir}/distribs" />
+    <property name="distrib.deb.dir" location="${distrib.dir}/${build.date}/deb" />
+    <property name="distrib.zip.dir" location="${distrib.dir}/${build.date}/zip" />
 
     <property environment="env" />
-
-    <fail unless="env.STARTEAM_JAVA_API"
-          message="System environment variable STARTEAM_JAVA_API is not set" />
 
     <available file="dpkg-deb"
                filepath="${env.PATH}"
                property="dpkg-deb.available" />
 
-    <target name="compile">
+    <target name="compile11">
         <mkdir dir="${build.classes.dir}" />
         <javac srcdir="${src.dir}"
                destdir="${build.classes.dir}"
@@ -33,7 +35,7 @@
                includeantruntime="false"
                excludes="com/starteam/**">
             <classpath>
-                <path path="${env.STARTEAM_JAVA_API}" />
+                <path path="${lib.dir}/starteam110.jar" />
             </classpath>
         </javac>
 
@@ -48,7 +50,7 @@
         </copy>
     </target>
 
-    <target name="compile12" if="env.STARTEAM_JAVA_API12">
+    <target name="compile12">
         <javac srcdir="${src.dir}"
                destdir="${build.classes.dir}"
                debug="true"
@@ -56,11 +58,13 @@
                includeantruntime="false"
                includes="com/starteam/**">
             <classpath>
-                <path path="${env.STARTEAM_JAVA_API12}" />
+                <fileset dir="${lib.dir}" includes="*" excludes="starteam110.jar" />
             </classpath>
         </javac>
     </target>
 
+    <target name="compile" depends="compile11, compile12" />
+    
     <target name="jar" depends="compile, compile12">
         <dirname property="jar.dir" file="${jar.file}" />
         <mkdir dir="${jar.dir}" />
@@ -79,11 +83,6 @@
 
         <copy todir="${assemble.zip.git-core}">
             <fileset dir="${bin.dir}" includes="*" />
-            <filterchain>
-                <replacetokens>
-                    <token key="JAR_NAME" value="'${jar.name}'" />
-                </replacetokens>
-            </filterchain>
         </copy>
 
         <chmod perm="a+x" file="${assemble.zip.git-core}/git-st" />
@@ -92,7 +91,8 @@
     </target>
 
     <target name="distrib-zip" depends="assemble-zip">
-        <zip destfile="${distrib.dir}/${project.name}_${project.version}.zip">
+        <mkdir dir="${distrib.zip.dir}"/>
+        <zip destfile="${distrib.zip.dir}/${project.name}_${project.version}.zip">
             <zipfileset dir="${assemble.zip.dir}"
                         includes="**/**"
                         excludes="**/git-st, **/git-remote-*" />
@@ -103,11 +103,12 @@
     </target>
 
     <target name="distrib-deb" if="dpkg-deb.available">
+        <mkdir dir="${distrib.deb.dir}"/>
         <antcall target="-distrib-deb">
             <param name="arch" value="amd64" />
         </antcall>
         <antcall target="-distrib-deb">
-            <param name="arch" value="all" />
+            <param name="arch" value="i386" />
         </antcall>
     </target>
 
@@ -157,17 +158,17 @@ Version: ${project.version}
 Architecture: ${arch}
 Maintainer: Andrey Pavlenko
 Installed-Size: ${size}
-Section: net
+Section: vcs
 Homepage: http://code.google.com/p/${project.name}/
-Description: Git frontend for StarTeam.
- Git frontend for StarTeam.
+Description: Git remote helper for StarTeam.
+ This remote helper allows Git to interact with remote StarTeam repositories.
 </echo>
 
         <exec executable="fakeroot">
             <arg value="dpkg-deb" />
             <arg value="-b" />
             <arg file="${assemble.deb.dir}" />
-            <arg value="${distrib.dir}/${project.name}_${project.version}${a}.deb" />
+            <arg value="${distrib.deb.dir}/${project.name}_${project.version}${a}.deb" />
         </exec>
     </target>
 
