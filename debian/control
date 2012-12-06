@@ -1,0 +1,17 @@
+Source: git-st
+Section: vcs
+Priority: optional
+Maintainer: #MAINTAINER#
+Build-Depends: debhelper (>= 8.0.0), libz-dev, 4-gnutls-dev | 
+ libcurl3-gnutls-dev, libexpat1-dev, tcl8.5, gettext, libdbd-sqlite3-perl,
+ unzip, libio-pty-perl, default-jdk (>= 1.7), ant, python, libssl-dev
+Standards-Version: 3.9.3
+Homepage: https://andrey.a.pavlenko@code.google.com/p/git-st/
+
+Package: git-st
+Architecture: any
+Depends: git (>= 1.6), 
+ oracle-java7-installer | default-jre (>= 1.7) | oracle-java8-installer, 
+ ${shlibs:Depends}
+Description: Git remote helper for StarTeam.
+ This remote helper allows Git to interact with remote StarTeam repositories.

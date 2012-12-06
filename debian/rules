@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+DIR := $(CURDIR)
+DESTDIR := $(DIR)/debian/git-st
+NPROC := $(shell getconf _NPROCESSORS_ONLN)
+MAKE_ARGS := PREFIX=/usr GIT_MAKE_ARGS=-j$(NPROC)
+
+%:
+	dh $@ 
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	dh_auto_build -- all install DESTDIR="$(DESTDIR)" $(MAKE_ARGS)
