@@ -1,11 +1,11 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: git-st
-Bundle-SymbolicName: com.googlecode.gitst
+Bundle-SymbolicName: com.aap.gitst
 Bundle-Version: 1.0.0
 Bundle-Vendor: Andrey Pavlenko
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Bundle-ActivationPolicy: lazy
-Export-Package: com.googlecode.gitst,
- com.googlecode.gitst.fastexport,
- com.googlecode.gitst.fastimport
+Export-Package: com.aap.gitst,
+ com.aap.gitst.fastexport,
+ com.aap.gitst.fastimport

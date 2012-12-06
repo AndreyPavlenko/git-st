@@ -4,7 +4,7 @@ import java.io.IOException;
 
 import System.Exception;
 
-import com.googlecode.gitst.Repo;
+import com.aap.gitst.Repo;
 import com.starteam.exceptions.CommandAbortedException;
 
 /**

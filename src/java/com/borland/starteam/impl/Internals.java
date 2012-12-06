@@ -2,6 +2,7 @@ package com.borland.starteam.impl;
 
 import java.io.IOException;
 
+import com.aap.gitst.Repo;
 import com.borland.starteam.impl._private_.vts.comm.Command;
 import com.borland.starteam.impl._private_.vts.comm.CommandMacro;
 import com.borland.starteam.impl._private_.vts.comm.CommandRoute;
@@ -9,7 +10,6 @@ import com.borland.starteam.impl._private_.vts.comm.Connection;
 import com.borland.starteam.impl._private_.vts.pickle.ItemRevision;
 import com.borland.starteam.impl.util.DateTime;
 import com.borland.starteam.impl.util.GUID;
-import com.googlecode.gitst.Repo;
 
 /**
  * @author Andrey Pavlenko

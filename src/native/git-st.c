@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "credential.h"
 
-JNIEXPORT void JNICALL Java_com_googlecode_gitst_Git_getCredentials(
+JNIEXPORT void JNICALL Java_com_aap_gitst_Git_getCredentials(
 		JNIEnv * env, jclass javaClass, jobject cb, jstring protocol,
 		jstring host, jstring username) {
 	struct credential c = CREDENTIAL_INIT;
