@@ -1,0 +1,50 @@
+-----
+About
+-----
+Git remote helper (http://www.kernel.org/pub/software/scm/git/docs/git-remote-helpers.html) 
+for StarTeam. This remote helper allows Git to interact with remote StarTeam 
+repositories. The fetch and push commands are based on the Git 
+fast-import (http://www.kernel.org/pub/software/scm/git/docs/git-fast-import.html) 
+and fast-export (http://www.kernel.org/pub/software/scm/git/docs/git-fast-export.html) 
+protocols.
+
+-----------
+Compilation
+-----------
+To build the project you need at least Java SDK 7 and Ant.
+
+    Ant
+    ---
+    To build with Ant just cd to the project root directory and type ant. 
+    If the build succeeded you will find distribution zip archive in the 
+    distribs directory.
+
+    Make
+    ----
+    To build with make you need to put Git sources into the 
+    <project root directory>/git and type make && make install PREFIX=/usr. 
+    For the list of the build dependencies please refer to the debian/control file.
+
+    Pbuilder
+    --------
+    In the project root directory you can find build.sh script which can be used
+    to build deb packages for one of multiple target platforms using pbuilder.
+
+------------
+Installation
+------------
+Extract the built zip archive into the $LIBEXEC/git-core directory. The location
+of the LIBEXEC directory depends on the system 
+(usually either /usr/lib or /usr/libexec). 
+Debian package can be installed with the dpkg -i <name>.deb command.
+
+Note: There is Ubuntu ppa – ppa:aap/tools. To install from this ppa:
+sudo apt-add-repository ppa:aap/tools
+sudo apt-get update
+sudo apt-get install git-st
+
+--------
+Clone
+--------
+To clone a StarTeam project just type:
+git clone starteam://[username[:password]@]hostname:port/Project/View[/Folder1/Folder2]
