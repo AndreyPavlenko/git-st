@@ -121,6 +121,9 @@ public class Init {
 
         props.saveLocalProperties();
         git.exec("config", "core.ignorecase", "false").exec().waitFor();
+        git.exec("config", "branch.master.remote", "origin").exec().waitFor();
+        git.exec("config", "branch.master.merge", "refs/heads/master").exec()
+                .waitFor();
     }
 
     private static void printHelp(final PrintStream ps) {
