@@ -353,6 +353,11 @@ public class Repo implements AutoCloseable {
         return false;
     }
 
+    public boolean isEmpty(final Folder f) {
+        return (f.getItems("File").length == 0)
+                && (f.getItems("Folder").length == 0);
+    }
+
     public Folder getFolder(final String path) {
         Folder f = _folderCache.get(path);
 

@@ -528,6 +528,7 @@ public class FastImport {
             final long time = date.getLongValue();
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
+            checkEmpty(c.getSourceItem().getParentFolder(), cmt, commits);
 
             if (verbose) {
                 logChange(time, c);
@@ -545,6 +546,7 @@ public class FastImport {
             final FileDelete c = new FileDelete(item, getRepo().getPath(item));
             final Commit cmt = getCommit(commits, user, time);
             cmt.addChange(c);
+            checkEmpty(item.getParentFolder(), cmt, commits);
 
             if (verbose) {
                 logChange(time, c);
@@ -566,6 +568,28 @@ public class FastImport {
 
             if (verbose) {
                 logChange(time, c);
+            }
+        }
+    }
+
+    private void checkEmpty(final Folder folder, final Commit cmt,
+            final ConcurrentMap<CommitId, Commit> commits) {
+        final Repo repo = getRepo();
+
+        if (repo.isEmpty(folder)) {
+            final String path = getRepo().getPath(folder);
+
+            if (repo.getFolder(path) != null) {
+                for (final Commit c : commits.values()) {
+                    for (final FileChange fc : c.getChanges()) {
+                        if ((fc instanceof EmptyDir)
+                                && ((EmptyDir) fc).getPath().equals(path)) {
+                            return;
+                        }
+                    }
+                }
+
+                cmt.addChange(new EmptyDir(folder, path));
             }
         }
     }
