@@ -9,14 +9,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.aap.gitst.Logger;
+import com.aap.gitst.Logger.ProgressBar;
 import com.aap.gitst.RemoteFile;
 import com.aap.gitst.Repo;
-import com.aap.gitst.Logger.ProgressBar;
+import com.aap.gitst.Utils;
 import com.starbase.starteam.CheckinEvent;
 import com.starbase.starteam.CheckinListener;
 import com.starbase.starteam.CheckinManager;
+import com.starbase.starteam.CheckinProgress;
 import com.starbase.starteam.File;
 import com.starbase.starteam.ItemList;
 
@@ -128,9 +131,7 @@ public class Commit implements FastExportCommand {
             items.addItem(f);
         }
 
-        final ProgressBar pb = repo.getLogger().createProgressBar(
-                "Checking in", items.size());
-        final Listener l = new Listener(repo, changes, pb);
+        final Listener l = new Listener(repo, changes);
         mgr.addCheckinListener(l);
         mgr.checkin(items);
     }
@@ -158,12 +159,13 @@ public class Commit implements FastExportCommand {
         private final Repo _repo;
         private final Map<RemoteFile, FileModify> _changes;
         private final ProgressBar _pb;
+        private final AtomicLong _totalBytes = new AtomicLong();
 
         public Listener(final Repo repo,
-                final Map<RemoteFile, FileModify> changes, final ProgressBar pb) {
+                final Map<RemoteFile, FileModify> changes) {
             _repo = repo;
             _changes = changes;
-            _pb = pb;
+            _pb = repo.getLogger().createProgressBar(this, changes.size());
         }
 
         @Override
@@ -173,16 +175,48 @@ public class Commit implements FastExportCommand {
                 e.setCurrentWorkingFile(_changes.get(new RemoteFile(f))
                         .getLocalFile(_repo));
             } catch (final IOException ex) {
+                _repo.getLogger().error("Error occurred", ex);
                 throw new RuntimeException(ex);
             }
         }
 
         @Override
         public void onNotifyProgress(final CheckinEvent e) {
+            if (!Utils.isApi12()) {
+                handleProgress(e.getCheckinManager().getProgress());
+            }
+
             if (e.isFinished()) {
+                if (!e.isSuccessful()) {
+                    _repo.getLogger().error(
+                            "Checkin failed: " + e.getErrorMessage(),
+                            e.getError());
+                }
+
                 _pb.done(1);
                 e.getCurrentWorkingFile().delete();
             }
+        }
+
+        private void handleProgress(final CheckinProgress progress) {
+            final long p = progress.getTotalBytesCheckedIn();
+
+            for (;;) {
+                final long total = _totalBytes.get();
+
+                if (total >= p) {
+                    return;
+                } else if (_totalBytes.compareAndSet(total, p)) {
+                    _pb.update();
+                    return;
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return Utils.isApi12() ? "Checking in" : "Checking in ("
+                    + _totalBytes + " bytes)";
         }
     }
 }
