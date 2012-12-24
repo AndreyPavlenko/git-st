@@ -576,7 +576,7 @@ public class FastImport {
             final ConcurrentMap<CommitId, Commit> commits) {
         final Repo repo = getRepo();
 
-        if (repo.isEmpty(folder)) {
+        if (!folder.isDeleted() && repo.isEmpty(folder)) {
             final String path = getRepo().getPath(folder);
 
             if (repo.getFolder(path) != null) {
