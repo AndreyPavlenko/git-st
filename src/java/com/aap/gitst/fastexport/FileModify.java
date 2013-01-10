@@ -10,16 +10,23 @@ import com.starbase.starteam.File;
  */
 public class FileModify extends FileChange {
     private final String _dataref;
+    private final boolean _isExecutable;
     private File _file;
     private java.io.File _localFile;
 
-    public FileModify(final String dataref, final String path) {
+    public FileModify(final String dataref, final String path,
+            final boolean isExecutable) {
         super(path);
         _dataref = dataref;
+        _isExecutable = isExecutable;
     }
 
     public String getDataref() {
         return _dataref;
+    }
+
+    public boolean isExecutable() {
+        return _isExecutable;
     }
 
     public synchronized File getFile(final Repo repo) {
@@ -34,7 +41,11 @@ public class FileModify extends FileChange {
             throws IOException {
         if ((_localFile == null) || !_localFile.exists()) {
             _localFile = repo.getGit().catFile(getDataref(),
-                    repo.createTempFile(getPath()));;
+                    repo.createTempFile(getPath()));
+
+            if (isExecutable()) {
+                _localFile.setExecutable(true);
+            }
         }
         return _localFile;
     }

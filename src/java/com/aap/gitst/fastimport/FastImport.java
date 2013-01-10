@@ -61,7 +61,7 @@ import com.starbase.util.OLEDate;
 public class FastImport {
     private static final String[] FILE_PROPS = { "Name", "ModifiedTime",
             "ModifiedUserID", "Comment", "DotNotation", "ItemDeletedTime",
-            "ItemDeletedUserID" };
+            "ItemDeletedUserID", "Executable" };
     private static final String[] FOLDER_PROPS = { "Name", "ModifiedTime",
             "ModifiedUserID", "Comment", "WorkingFolder", "DotNotation",
             "ItemDeletedTime", "ItemDeletedUserID" };
@@ -938,8 +938,6 @@ public class FastImport {
             final String path = _files.get(id).get(0).getPath();
 
             try {
-                // Workaround to disable EOL conversion
-                f.put("EOL", null);
                 e.setCurrentWorkingFile(_repo.createTempFile(path));
             } catch (final IOException ex) {
                 throw new RuntimeException(

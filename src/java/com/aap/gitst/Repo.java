@@ -519,7 +519,6 @@ public class Repo implements AutoCloseable {
     public synchronized CheckoutManager createCheckoutManager() {
         final View view = getView();
         final CheckoutOptions co = new CheckoutOptions(view);
-        co.setEOLConversionEnabled(false);
         co.setOptimizeForSlowConnections(true);
         co.setUpdateStatus(false);
         co.setForceCheckout(true);
@@ -531,7 +530,6 @@ public class Repo implements AutoCloseable {
         final View view = getView();
         final CheckinOptions cio = new CheckinOptions(view);
         cio.setForceCheckin(true);
-        cio.setEOLConversionEnabled(false);
         cio.setAtomicCheckInDisabled(false);
         cio.setCheckinReason(reason);
         return view.createCheckinManager(cio);

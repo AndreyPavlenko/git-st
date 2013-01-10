@@ -265,7 +265,8 @@ public class ExportStreamReader {
                 throws UnsupportedCommandException {
             final String[] args = r.split(line);
             final FileModify c = new FileModify(args[2], line.substring(line
-                    .indexOf(args[2]) + args[2].length() + 1));
+                    .indexOf(args[2]) + args[2].length() + 1),
+                    "100755".equals(args[1]) || "755".equals(args[1]));
             addChange(commit, c);
             return c;
         }

@@ -11,6 +11,7 @@ import java.util.Set;
 
 import com.aap.gitst.Logger.Level;
 import com.aap.gitst.Logger.ProgressBar;
+import com.starbase.starteam.FileStream;
 import com.starbase.starteam.Folder;
 import com.starbase.starteam.Item;
 import com.starbase.starteam.View;
@@ -21,7 +22,7 @@ import com.starbase.util.MD5;
  */
 public class Status {
     private static final String[] FILE_PROPS = { "Name", "MD5", "DotNotation",
-            "RootObjectID", "ContentVersion" };
+            "RootObjectID", "ContentVersion", "Charset" };
     private static final String[] FOLDER_PROPS = { "Name" };
     private final Repo _repo;
     private final Logger _log;
@@ -124,7 +125,13 @@ public class Status {
 
             if (localFile.isFile()) {
                 final MD5 md5 = new MD5();
-                md5.computeFileMD5Ex(localFile);
+
+                if (f.isBinary()) {
+                    FileStream.computeSyncMD5Ex(localFile, md5);
+                } else {
+                    FileStream.computeCompareMD5Ex(localFile, f.getView()
+                            .getProject().isExpandKeywords(), true, md5);
+                }
 
                 if (Arrays.equals(md5.getData(), f.getMD5())) {
                     if (_log.isDebugEnabled()) {

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 
 import com.aap.gitst.Repo;
+import com.starbase.starteam.File;
 
 /**
  * @author Andrey Pavlenko
@@ -41,10 +42,17 @@ public class FileModify extends FileChange {
     @Override
     public void write(final Repo repo, final PrintStream s) throws IOException,
             InterruptedException {
-        s.print("M 100644 inline ");
+        final FileData data = getFileData();
+
+        if (isExecutable(data.getFile())) {
+            s.print("M 100755 inline ");
+        } else {
+            s.print("M 100644 inline ");
+        }
+
         s.print(getPath());
         s.print('\n');
-        getFileData().write(repo, s);
+        data.write(repo, s);
     }
 
     @Override
@@ -56,5 +64,10 @@ public class FileModify extends FileChange {
     public String toString() {
         return (isNewFile() ? "A " : "M ") + getPath() + ':'
                 + getFileData().getFile().getDotNotation();
+    }
+
+    private static boolean isExecutable(final File f) {
+        final Object prop = f.get(f.getPropertyNames().FILE_EXECUTABLE);
+        return (prop instanceof Number) && (((Number) prop).intValue() == 1);
     }
 }

@@ -172,8 +172,10 @@ public class Commit implements FastExportCommand {
         public void onStartFile(final CheckinEvent e) {
             try {
                 final File f = e.getCurrentFile();
-                e.setCurrentWorkingFile(_changes.get(new RemoteFile(f))
-                        .getLocalFile(_repo));
+                final FileModify m = _changes.get(new RemoteFile(f));
+                e.setCurrentWorkingFile(m.getLocalFile(_repo));
+                f.put(f.getPropertyNames().FILE_EXECUTABLE, m.isExecutable()
+                        ? 1 : 0);
             } catch (final IOException ex) {
                 _repo.getLogger().error("Error occurred", ex);
                 throw new RuntimeException(ex);
