@@ -153,8 +153,8 @@ create_source_packages() {
     # Generate changelog
     cp -r "$DIR/debian" "$BUILD_DIR"
     git --git-dir="$DIR/.git" log \
-        --format="#PKG# (${version}-#CIn#~%h-#PPAn#~#DIST#) #DIST#; urgency=medium%n%B%n-- %aN <%ae>  %aD%n"\
-        | tac | perl -ple '\ s/\#CIn#/sprintf("%s", $c++)/e' | sed -E 's/^([^#-])/  * \1/g; s/^--/ --/'\
+        --format="#PKG# (#VER#-#CIn#~%h-#PPAn#~#DIST#) #DIST#; urgency=medium%n%B%n-- %aN <%ae>  %aD%n"\
+        | tac | sed -E 's/^([^#-])/  * \1/g; s/^--/ --/'\
         | tac > "$BUILD_DIR/debian/changelog"
     
     
@@ -164,7 +164,8 @@ create_source_packages() {
     do
         eval local $(git --git-dir="$DIR/.git" show ${h}:build.xml | \
                      grep 'name="project.version"' -m 1 | awk '{print $3}')
-        ver_replace="$ver_replace; s/#VER#-${c}~${h}/${value}-${c}~${h}/"
+        ver_replace="$ver_replace; s/#VER#-#CIn#~${h}/${value}-${c}~${h}/"
+        c=$(( $c + 1 ))
     done
     
     sed -i "$ver_replace" "$BUILD_DIR/debian/changelog"
