@@ -35,7 +35,7 @@ public class Pull {
         final String dir = a.get("-d", null);
         final boolean dryRun = a.hasOption("--dry-run");
         final Level level = a.hasOption("-v") ? Level.DEBUG : a.hasOption("-q")
-                ? Level.ERROR : Level.INFO;
+                ? Level.ERROR : null;
         final Logger log = Logger.createConsoleLogger(level);
 
         try {

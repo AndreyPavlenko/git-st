@@ -37,7 +37,7 @@ public class Status {
         final String user = a.get("-u", null);
         final String password = a.get("-p", null);
         final String dir = a.get("-d", null);
-        final Level level = a.hasOption("-v") ? Level.DEBUG : Level.INFO;
+        final Level level = a.hasOption("-v") ? Level.DEBUG : null;
         final Logger log = Logger.createConsoleLogger(level);
 
         try {
