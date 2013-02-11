@@ -16,7 +16,7 @@ public class FileRename extends FileChange {
     private final FileModify _fileModify;
     private final String _sourcePath;
     private final String _destPath;
-    private String _comment;
+    private final String _comment;
 
     public FileRename(final Item sourceItem, final Item destItem,
             final String sourcePath, final String destPath) {
@@ -24,6 +24,7 @@ public class FileRename extends FileChange {
         _destItem = destItem;
         _sourcePath = sourcePath;
         _destPath = destPath;
+        _comment = destItem.getComment();
 
         if (destItem instanceof File) {
             _fileModify = new FileModify(
@@ -54,10 +55,7 @@ public class FileRename extends FileChange {
     }
 
     @Override
-    public synchronized String getComment() {
-        if (_comment == null) {
-            _comment = getDestItem().getComment();
-        }
+    public String getComment() {
         return _comment;
     }
 

@@ -31,11 +31,11 @@ import com.aap.gitst.ExecutionException;
 import com.aap.gitst.Git;
 import com.aap.gitst.ItemFilter;
 import com.aap.gitst.Logger;
+import com.aap.gitst.Logger.ProgressBar;
 import com.aap.gitst.RemoteFile;
 import com.aap.gitst.Repo;
 import com.aap.gitst.RepoProperties;
 import com.aap.gitst.Utils;
-import com.aap.gitst.Logger.ProgressBar;
 import com.starbase.starteam.CheckoutEvent;
 import com.starbase.starteam.CheckoutListener;
 import com.starbase.starteam.CheckoutProgress;
@@ -101,6 +101,7 @@ public class FastImport {
         final IntermediateListener iListener = new IntermediateListener();
         final ViewListener vListener = new ViewListener(filter);
         final ViewConfigurationDiffer diff = new ViewConfigurationDiffer(v);
+        long time;
 
         if (_log.isInfoEnabled()) {
             _log.info("Requesting changes since " + startDate);
@@ -111,8 +112,15 @@ public class FastImport {
         diff.addFolderUpdateListener(iListener);
         diff.addItemUpdateListener(iListener,
                 repo.getServer().typeForName("File"));
+
+        time = System.currentTimeMillis();
         diff.compare(ViewConfiguration.createFromTime(startDate),
                 ViewConfiguration.createFromTime(endDate));
+
+        if (_log.isDebugEnabled()) {
+            _log.debug("Changes received in "
+                    + ((System.currentTimeMillis() - time) / 1000) + " seconds");
+        }
 
         for (final IntermediateListener.EventWrapper w : iListener.getEvents()) {
             switch (w._type) {
@@ -133,6 +141,9 @@ public class FastImport {
                 break;
             case FOLDER_MOVED:
                 vListener.folderMoved((FolderUpdateEvent) w._event);
+                break;
+            case FOLDER_CHANGED:
+                vListener.folderChanged((FolderUpdateEvent) w._event);
                 break;
             case FOLDER_REMOVED:
                 vListener.folderRemoved((FolderUpdateEvent) w._event);
@@ -612,24 +623,37 @@ public class FastImport {
 
     private static final class IntermediateListener implements
             FolderUpdateListener, ItemUpdateListener {
+        private final List<File> _files = new ArrayList<>();
         private final List<Folder> _folders = new ArrayList<>();
         private final List<EventWrapper> _events = new ArrayList<>();
 
         public List<EventWrapper> getEvents() {
+            if (!_files.isEmpty()) {
+                final ItemList list = new ItemList();
+
+                for (final Item i : _files) {
+                    list.addItem(i);
+                }
+
+                list.populateNow(FILE_PROPS);
+            }
             if (!_folders.isEmpty()) {
                 final ItemList list = new ItemList();
-                for (final Folder f : _folders) {
-                    list.addItem(f);
+
+                for (final Item i : _folders) {
+                    list.addItem(i);
                 }
-                list.populateNow(new String[] { "Name" });
+
+                list.populateNow(FOLDER_PROPS);
             }
+
             return _events;
         }
 
         @Override
         public void itemAdded(final ItemUpdateEvent e) {
             final Item dest = e.getNewItem();
-            addFolders(dest);
+            addItem(dest);
             _events.add(new EventWrapper(Type.ITEM_ADDED, e));
         }
 
@@ -637,8 +661,8 @@ public class FastImport {
         public void itemMoved(final ItemUpdateEvent e) {
             final Item src = e.getOldItem();
             final Item dest = e.getNewItem();
-            addFolders(src);
-            addFolders(dest);
+            addItem(src);
+            addItem(dest);
             _events.add(new EventWrapper(Type.ITEM_MOVED, e));
         }
 
@@ -646,22 +670,22 @@ public class FastImport {
         public void itemChanged(final ItemUpdateEvent e) {
             final Item src = e.getOldItem();
             final Item dest = e.getNewItem();
-            addFolders(src);
-            addFolders(dest);
+            addItem(src);
+            addItem(dest);
             _events.add(new EventWrapper(Type.ITEM_CHANGED, e));
         }
 
         @Override
         public void itemRemoved(final ItemUpdateEvent e) {
             final Item src = e.getOldItem();
-            addFolders(src);
+            addItem(src);
             _events.add(new EventWrapper(Type.ITEM_REMOVED, e));
         }
 
         @Override
         public void folderAdded(final FolderUpdateEvent e) {
             final Folder dest = e.getNewFolder();
-            addFolders(dest);
+            addItem(dest);
             _events.add(new EventWrapper(Type.FOLDER_ADDED, e));
         }
 
@@ -669,27 +693,36 @@ public class FastImport {
         public void folderMoved(final FolderUpdateEvent e) {
             final Item src = e.getOldFolder();
             final Item dest = e.getNewFolder();
-            addFolders(src);
-            addFolders(dest);
+            addItem(src);
+            addItem(dest);
             _events.add(new EventWrapper(Type.FOLDER_MOVED, e));
         }
 
         @Override
         public void folderRemoved(final FolderUpdateEvent e) {
             final Item src = e.getOldFolder();
-            addFolders(src);
+            addItem(src);
             _events.add(new EventWrapper(Type.FOLDER_REMOVED, e));
         }
 
         @Override
         public void folderChanged(final FolderUpdateEvent e) {
-            // Not supported
+            final Item src = e.getOldFolder();
+            final Item dest = e.getNewFolder();
+            addItem(src);
+            addItem(dest);
+            _events.add(new EventWrapper(Type.FOLDER_CHANGED, e));
         }
 
-        private void addFolders(final Item i) {
+        private void addItem(final Item i) {
             for (Folder f = i.getParentFolder(); f != null; f = f
                     .getParentFolder()) {
                 _folders.add(f);
+            }
+            if (i instanceof File) {
+                _files.add((File) i);
+            } else {
+                _folders.add((Folder) i);
             }
         }
 
@@ -867,7 +900,7 @@ public class FastImport {
 
         @Override
         public void folderChanged(final FolderUpdateEvent e) {
-            // Not supported
+            // TODO: Implement.
         }
     }
 

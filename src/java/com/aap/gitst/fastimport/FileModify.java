@@ -12,11 +12,12 @@ import com.starbase.starteam.File;
 public class FileModify extends FileChange {
     private final FileData _fileData;
     private final boolean _isNewFile;
-    private String _comment;
+    private final String _comment;
 
     public FileModify(final FileData fileData, final boolean isNewFile) {
         _fileData = fileData;
         _isNewFile = isNewFile;
+        _comment = fileData.getFile().getComment();
     }
 
     public FileData getFileData() {
@@ -28,10 +29,7 @@ public class FileModify extends FileChange {
     }
 
     @Override
-    public synchronized String getComment() {
-        if (_comment == null) {
-            _comment = getFileData().getFile().getComment();
-        }
+    public String getComment() {
         return _comment;
     }
 
