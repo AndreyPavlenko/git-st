@@ -61,7 +61,7 @@ import com.starbase.util.OLEDate;
 public class FastImport {
     private static final String[] FILE_PROPS = { "Name", "ModifiedTime",
             "ModifiedUserID", "Comment", "DotNotation", "ItemDeletedTime",
-            "ItemDeletedUserID", "Executable" };
+            "ItemDeletedUserID", "Executable", "FileSize" };
     private static final String[] FOLDER_PROPS = { "Name", "ModifiedTime",
             "ModifiedUserID", "Comment", "WorkingFolder", "DotNotation",
             "ItemDeletedTime", "ItemDeletedUserID" };
@@ -876,6 +876,7 @@ public class FastImport {
         private final Map<RemoteFile, List<FileData>> _files;
         private final ItemList _itemList;
         private final AtomicLong _totalBytes = new AtomicLong();
+        private final String _avgSize;
         final ProgressBar _pbar;
 
         public CoListener(final Repo repo, final Collection<Commit> commits) {
@@ -883,6 +884,7 @@ public class FastImport {
             _files = new HashMap<>();
             _itemList = new ItemList();
             final Logger log = repo.getLogger();
+            long size = 0;
 
             for (final Commit cmt : commits) {
                 for (final FileChange c : cmt.getChanges()) {
@@ -906,6 +908,7 @@ public class FastImport {
                     final RemoteFile id = new RemoteFile(f);
                     final List<FileData> old = _files.put(id,
                             Collections.singletonList(d));
+                    size += f.getSizeEx();
 
                     if (old != null) {
                         final List<FileData> newList = new ArrayList<>(
@@ -924,6 +927,7 @@ public class FastImport {
                 }
             }
 
+            _avgSize = Repo.bytesToString(size);
             _pbar = repo.getLogger().createProgressBar(this, _itemList.size());
         }
 
@@ -991,7 +995,8 @@ public class FastImport {
         @Override
         public String toString() {
             return Utils.isApi12() ? "Checking out" : "Checking out ("
-                    + _totalBytes + " bytes)";
+                    + Repo.bytesToString(_totalBytes.get()) + " / " + _avgSize
+                    + ')';
         }
 
         private void handleProgress(final CheckoutProgress progress) {

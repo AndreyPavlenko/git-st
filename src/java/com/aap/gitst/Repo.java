@@ -18,6 +18,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -623,6 +625,17 @@ public class Repo implements AutoCloseable {
         name = MessageFormat.format(getUserNamePattern(), l.toArray());
         getRepoProperties().setSessionUserMapping(userId, name);
         return name;
+    }
+
+    public static String bytesToString(final long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < (1024 * 1024)) {
+            return (bytes / 1024) + " KB";
+        } else {
+            return new BigDecimal((double) bytes / (1024 * 1024)).setScale(1,
+                    RoundingMode.HALF_UP) + " MB";
+        }
     }
 
     private static Project findProject(final Server s, final String name) {

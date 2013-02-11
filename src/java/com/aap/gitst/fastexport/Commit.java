@@ -125,13 +125,15 @@ public class Commit implements FastExportCommand {
     private void commit(final CheckinManager mgr, final Repo repo,
             final Map<RemoteFile, FileModify> changes) throws IOException {
         final ItemList items = new ItemList();
+        long size = 0;
 
         for (final FileModify c : changes.values()) {
             final File f = c.getFile(repo);
             items.addItem(f);
+            size += c.getLocalFile(repo).length();
         }
 
-        final Listener l = new Listener(repo, changes);
+        final Listener l = new Listener(repo, changes, size);
         mgr.addCheckinListener(l);
         mgr.checkin(items);
     }
@@ -160,11 +162,13 @@ public class Commit implements FastExportCommand {
         private final Map<RemoteFile, FileModify> _changes;
         private final ProgressBar _pb;
         private final AtomicLong _totalBytes = new AtomicLong();
+        private final String _avgSize;
 
         public Listener(final Repo repo,
-                final Map<RemoteFile, FileModify> changes) {
+                final Map<RemoteFile, FileModify> changes, final long avgSize) {
             _repo = repo;
             _changes = changes;
+            _avgSize = Repo.bytesToString(avgSize);
             _pb = repo.getLogger().createProgressBar(this, changes.size());
         }
 
@@ -218,7 +222,9 @@ public class Commit implements FastExportCommand {
         @Override
         public String toString() {
             return Utils.isApi12() ? "Checking in" : "Checking in ("
-                    + _totalBytes + " bytes)";
+                    + Repo.bytesToString(_totalBytes.get()) + " / " + _avgSize
+                    + ')';
+
         }
     }
 }
