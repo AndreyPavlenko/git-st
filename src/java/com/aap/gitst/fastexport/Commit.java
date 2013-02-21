@@ -168,7 +168,7 @@ public class Commit implements FastExportCommand {
                 final Map<RemoteFile, FileModify> changes, final long avgSize) {
             _repo = repo;
             _changes = changes;
-            _avgSize = Repo.bytesToString(avgSize);
+            _avgSize = Utils.bytesToString(avgSize);
             _pb = repo.getLogger().createProgressBar(this, changes.size());
         }
 
@@ -222,7 +222,7 @@ public class Commit implements FastExportCommand {
         @Override
         public String toString() {
             return Utils.isApi12() ? "Checking in" : "Checking in ("
-                    + Repo.bytesToString(_totalBytes.get()) + " / " + _avgSize
+                    + Utils.bytesToString(_totalBytes.get()) + " / " + _avgSize
                     + ')';
 
         }

@@ -960,7 +960,7 @@ public class FastImport {
                 }
             }
 
-            _avgSize = Repo.bytesToString(size);
+            _avgSize = Utils.bytesToString(size);
             _pbar = repo.getLogger().createProgressBar(this, _itemList.size());
         }
 
@@ -1009,7 +1009,7 @@ public class FastImport {
                             try {
                                 final java.io.File newFile = _repo
                                         .createTempFile(d.getPath());
-                                Repo.copyFile(wf, newFile);
+                                Utils.copyFile(wf, newFile);
                                 d.setCheckout(wf);
                                 wf = newFile;
                             } catch (final IOException ex) {
@@ -1028,7 +1028,7 @@ public class FastImport {
         @Override
         public String toString() {
             return Utils.isApi12() ? "Checking out" : "Checking out ("
-                    + Repo.bytesToString(_totalBytes.get()) + " / " + _avgSize
+                    + Utils.bytesToString(_totalBytes.get()) + " / " + _avgSize
                     + ')';
         }
 

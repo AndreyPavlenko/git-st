@@ -14,13 +14,7 @@ import static com.starbase.starteam.ServerConfiguration.PROTOCOL_TCP_IP_SOCKETS_
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -385,36 +379,6 @@ public class Repo implements AutoCloseable {
         }
     }
 
-    public static String getParentFolderPath(final String path) {
-        final int slash = path.lastIndexOf('/');
-
-        if (slash == -1) {
-            return "";
-        } else {
-            return path.substring(0, slash);
-        }
-    }
-
-    public static String getFileName(final String path) {
-        final int slash = path.lastIndexOf('/');
-
-        if ((slash == -1) || (slash == (path.length() - 1))) {
-            return "";
-        } else {
-            return path.substring(slash + 1);
-        }
-    }
-
-    public Folder getOrCreateParentFolder(final String path) {
-        final int slash = path.lastIndexOf('/');
-
-        if (slash == -1) {
-            return getRootFolder();
-        } else {
-            return getOrCreateFolder(path.substring(0, slash));
-        }
-    }
-
     public com.starbase.starteam.File getFile(final String path) {
         com.starbase.starteam.File f = _fileCache.get(path);
 
@@ -445,7 +409,7 @@ public class Repo implements AutoCloseable {
         return f;
     }
 
-    public Folder getOrCreateFolder(final String path) {
+    public synchronized Folder getOrCreateFolder(final String path) {
         Folder f = _folderCache.get(path);
 
         if (f == null) {
@@ -472,7 +436,8 @@ public class Repo implements AutoCloseable {
         return f;
     }
 
-    public com.starbase.starteam.File getOrCreateFile(final String path) {
+    public synchronized com.starbase.starteam.File getOrCreateFile(
+            final String path) {
         com.starbase.starteam.File f = _fileCache.get(path);
 
         if (f == null) {
@@ -499,6 +464,27 @@ public class Repo implements AutoCloseable {
         }
 
         return f;
+    }
+
+    public synchronized void rename(final Item i, final String dest,
+            final String comment) {
+        final String oldPath = getPath(i);
+        i.setComment(comment);
+        i.moveTo(getOrCreateParentFolder(dest));
+
+        if (i instanceof com.starbase.starteam.File) {
+            final com.starbase.starteam.File f = (com.starbase.starteam.File) i;
+            f.setName(Repo.getFileName(dest));
+            f.update();
+            _fileCache.remove(oldPath);
+            _fileCache.put(getPath(f), f);
+        } else {
+            final Folder f = (Folder) i;
+            f.setName(Repo.getFileName(dest));
+            f.update();
+            _folderCache.remove(oldPath);
+            _folderCache.put(getPath(f), f);
+        }
     }
 
     public MessageFormat getCommentFormat() {
@@ -577,21 +563,6 @@ public class Repo implements AutoCloseable {
         }
     }
 
-    public static void copyFile(final java.io.File from, final java.io.File to)
-            throws FileNotFoundException, IOException {
-        try (FileInputStream in = new FileInputStream(from);
-                FileOutputStream out = new FileOutputStream(to);
-                FileChannel inc = in.getChannel();
-                FileChannel outc = out.getChannel();) {
-            final int maxCount = (64 * 1024 * 1024) - (32 * 1024);
-            final long size = inc.size();
-            long position = 0;
-            while (position < size) {
-                position += inc.transferTo(position, maxCount, outc);
-            }
-        }
-    }
-
     public String toCommitter(final int userId) {
         String name = getRepoProperties().getUserMapping(userId);
 
@@ -627,17 +598,6 @@ public class Repo implements AutoCloseable {
         return name;
     }
 
-    public static String bytesToString(final long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        } else if (bytes < (1024 * 1024)) {
-            return (bytes / 1024) + " KB";
-        } else {
-            return new BigDecimal((double) bytes / (1024 * 1024)).setScale(1,
-                    RoundingMode.HALF_UP) + " MB";
-        }
-    }
-
     private static Project findProject(final Server s, final String name) {
         for (final Project p : s.getProjects()) {
             if (name.equals(p.getName())) {
@@ -656,6 +616,28 @@ public class Repo implements AutoCloseable {
         }
 
         throw new ConfigurationException("No such view: " + name);
+    }
+
+    private static String getFileName(final String path) {
+        final int slash = path.lastIndexOf('/');
+
+        if (slash == -1) {
+            return path;
+        } else if (slash == (path.length() - 1)) {
+            return "";
+        } else {
+            return path.substring(slash + 1);
+        }
+    }
+
+    private Folder getOrCreateParentFolder(final String path) {
+        final int slash = path.lastIndexOf('/');
+
+        if (slash == -1) {
+            return getRootFolder();
+        } else {
+            return getOrCreateFolder(path.substring(0, slash));
+        }
     }
 
     private static File createFile(final File dir, final String path) {

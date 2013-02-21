@@ -3,8 +3,7 @@ package com.aap.gitst.fastexport;
 import java.io.IOException;
 
 import com.aap.gitst.Repo;
-import com.starbase.starteam.File;
-import com.starbase.starteam.Folder;
+import com.aap.gitst.Utils;
 import com.starbase.starteam.Item;
 
 /**
@@ -33,20 +32,11 @@ public class FileRename extends FileChange {
 
             if (i == null) {
                 throw new FastExportException("No such file or direcotry: "
-                        + Repo.getParentFolderPath(path));
+                        + Utils.getParentFolderPath(path));
             }
         }
 
-        final String dest = getDestPath();
-        i.setComment(commit.getComment());
-        i.moveTo(repo.getOrCreateParentFolder(dest));
-
-        if (i instanceof File) {
-            ((File) i).rename(Repo.getFileName(dest));
-        } else {
-            ((Folder) i).setName(Repo.getFileName(dest));
-            ((Folder) i).update();
-        }
+        repo.rename(i, getDestPath(), commit.getComment());
     }
 
     @Override

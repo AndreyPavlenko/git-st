@@ -1,6 +1,13 @@
 package com.aap.gitst;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -36,6 +43,42 @@ public class Utils {
 
         GET_HISTORY12 = getHistory;
         IS_API12 = getHistory != null;
+    }
+
+    public static String bytesToString(final long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < (1024 * 1024)) {
+            return (bytes / 1024) + " KB";
+        } else {
+            return new BigDecimal((double) bytes / (1024 * 1024)).setScale(1,
+                    RoundingMode.HALF_UP) + " MB";
+        }
+    }
+
+    public static void copyFile(final java.io.File from, final java.io.File to)
+            throws FileNotFoundException, IOException {
+        try (FileInputStream in = new FileInputStream(from);
+                FileOutputStream out = new FileOutputStream(to);
+                FileChannel inc = in.getChannel();
+                FileChannel outc = out.getChannel();) {
+            final int maxCount = (64 * 1024 * 1024) - (32 * 1024);
+            final long size = inc.size();
+            long position = 0;
+            while (position < size) {
+                position += inc.transferTo(position, maxCount, outc);
+            }
+        }
+    }
+
+    public static String getParentFolderPath(final String path) {
+        final int slash = path.lastIndexOf('/');
+
+        if (slash == -1) {
+            return "";
+        } else {
+            return path.substring(0, slash);
+        }
     }
 
     public static boolean isApi12() {

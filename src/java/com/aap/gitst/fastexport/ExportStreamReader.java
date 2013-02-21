@@ -9,6 +9,7 @@ import java.util.TreeMap;
 import com.aap.gitst.Logger;
 import com.aap.gitst.Repo;
 import com.aap.gitst.StreamReader;
+import com.aap.gitst.Utils;
 
 /**
  * @author Andrey Pavlenko
@@ -158,7 +159,7 @@ public class ExportStreamReader {
 
     private void checkEmptyDirs(final String path, final Commit cmt)
             throws InterruptedException, IOException {
-        final String parent = Repo.getParentFolderPath(path);
+        final String parent = Utils.getParentFolderPath(path);
 
         if ((parent.length() != 0) && !getRepo().isIgnored(parent)) {
             if (!_repo.getGit().containsPath(_repo.getBranchName(), parent)) {

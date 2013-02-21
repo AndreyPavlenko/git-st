@@ -3,6 +3,7 @@ package com.aap.gitst.fastexport;
 import java.io.IOException;
 
 import com.aap.gitst.Repo;
+import com.aap.gitst.Utils;
 import com.starbase.starteam.Item;
 
 /**
@@ -29,8 +30,8 @@ public class FileDelete extends FileChange {
             i = repo.getFolder(path);
 
             if (i == null) {
-                throw new FastExportException("No such file or direcotry: "
-                        + Repo.getParentFolderPath(path));
+                throw new FastExportException("No such file or directory: "
+                        + Utils.getParentFolderPath(path));
             }
         }
 
