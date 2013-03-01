@@ -19,6 +19,7 @@ import com.starbase.starteam.CheckoutListener;
 import com.starbase.starteam.CheckoutManager;
 import com.starbase.starteam.Item;
 import com.starbase.starteam.ItemList;
+import com.starbase.util.OLEDate;
 
 /**
  * @author Andrey Pavlenko
@@ -95,8 +96,11 @@ public class Utils {
             // FIXME: this is a workaround to avoid unexpected failures during
             // checkout of deleted files.
             try {
-                final com.starbase.starteam.View historyView = repo.getView(i
-                        .getModifiedTime());
+                OLEDate asOfTime = i.getModifiedTime();
+                OLEDate viewCreateTime = repo.getView().getCreatedTime();
+                if (asOfTime.getDoubleValue() < viewCreateTime.getDoubleValue())
+                    asOfTime = viewCreateTime;
+                final com.starbase.starteam.View historyView = repo.getView(asOfTime);
                 final com.starbase.starteam.Item historyItem = historyView
                         .findItem(i.getType(), i.getID());
 
