@@ -104,7 +104,7 @@ do
     fi
 done
 
-[ -z "${SKIP_MX_ARG}" ] && JVM_ARGS[${#JVM_ARGS[@]}]="-Xmx1g"
+[ -z "${SKIP_MX_ARG}" ] && JVM_ARGS[${#JVM_ARGS[@]}]="-Xmx2g"
 
 if [ ! -z "${JAVA7_HOME}" ] && [ -f "${JAVA7_HOME}/bin/java${FILE_EXT}" ]
 then
