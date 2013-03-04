@@ -264,7 +264,7 @@ public class FastImport {
         final Folder rootFolder = repo.getRootFolder();
         Folder recycleRootFolder = null;
         final boolean skipDeleted = "true".equalsIgnoreCase(System
-                .getenv("GIST_SKIP_DELETED"));
+                .getenv("GITST_SKIP_DELETED"));
         final Type type = repo.getServer().typeForName("File");
         final int count;
         int recycleCount = 0;
