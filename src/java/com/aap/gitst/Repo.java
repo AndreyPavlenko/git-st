@@ -270,19 +270,26 @@ public class Repo implements AutoCloseable {
         return connect();
     }
 
-    public synchronized View getView(final OLEDate configDate) {
-        final double d = configDate.getDoubleValue();
+    public synchronized View getView(final OLEDate fromDate,
+            final OLEDate toDate) {
+        final double from = fromDate.getDoubleValue();
+        final double to = toDate.getDoubleValue();
 
         for (final View v : _viewCache) {
             final double date = v.getConfiguration().getTime().getDoubleValue();
 
-            if (date == d) {
+            if ((date >= from) && (date <= to)) {
                 return v;
             }
         }
 
+        if (_logger.isDebugEnabled()) {
+            _logger.debug("Creating view as of: " + toDate + ". Cache size: "
+                    + _viewCache.size() + ".");
+        }
+
         final View v = new View(getView(),
-                ViewConfiguration.createFromTime(configDate));
+                ViewConfiguration.createFromTime(toDate));
         _viewCache.add(v);
         return v;
     }

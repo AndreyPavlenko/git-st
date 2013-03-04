@@ -89,38 +89,29 @@ public class Utils {
     public static com.starbase.starteam.Item[] getHistory(final Repo repo,
             final com.starbase.starteam.Item i,
             final com.starbase.starteam.ItemList list) {
-        com.starbase.starteam.Item[] history = null;
-        final boolean deleted = i.isDeleted();
+        if (i.isDeleted()) {
+            final OLEDate lastModified = i.getModifiedTime();
+            final OLEDate beforeDeletion = new OLEDate(i.getDeletedTime()
+                    .getLongValue() - 1000);
+            final com.starbase.starteam.View historyView;
 
-        if (deleted) {
-            // FIXME: this is a workaround to avoid unexpected failures during
-            // checkout of deleted files.
-            try {
-                OLEDate asOfTime = i.getModifiedTime();
-                OLEDate viewCreateTime = repo.getView().getCreatedTime();
-                if (asOfTime.getDoubleValue() < viewCreateTime.getDoubleValue())
-                    asOfTime = viewCreateTime;
-                final com.starbase.starteam.View historyView = repo.getView(asOfTime);
-                final com.starbase.starteam.Item historyItem = historyView
-                        .findItem(i.getType(), i.getID());
-
-                if (historyItem != null) {
-                    history = getHistory(repo, historyItem);
-                }
-            } catch (final Throwable ex) {
-                if (repo.getLogger().isDebugEnabled()) {
-                    repo.getLogger().debug(
-                            repo.getPath(i) + ": " + ex.getMessage());
-                }
+            if (lastModified.getDoubleValue() > beforeDeletion.getDoubleValue()) {
+                historyView = repo.getView(lastModified, lastModified);
+            } else {
+                historyView = repo.getView(lastModified, beforeDeletion);
             }
-            if (history == null) {
-                history = getHistory(repo, i);
-            }
-        } else {
-            history = getHistory(repo, i);
-        }
 
-        if (deleted) {
+            // FIXME: this is a workaround to avoid unexpected failures
+            // during checkout of deleted files.
+            com.starbase.starteam.Item historyItem = historyView.findItem(
+                    i.getType(), i.getItemID());
+
+            if (historyItem == null) {
+                historyItem = i;
+            }
+
+            final com.starbase.starteam.Item[] history = getHistory(repo,
+                    historyItem);
             final com.starbase.starteam.Item[] h = new com.starbase.starteam.Item[history.length + 1];
             h[0] = i; // Marker for deleted items
 
@@ -131,9 +122,12 @@ public class Utils {
 
             return h;
         } else {
+            final com.starbase.starteam.Item[] history = getHistory(repo, i);
+
             for (final com.starbase.starteam.Item h : history) {
                 list.addItem(h);
             }
+
             return history;
         }
     }
