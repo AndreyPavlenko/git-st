@@ -14,7 +14,7 @@ DEPENDS='git'
 [ ! -f "$HOME/.build.config" ] || . "$HOME/.build.config" && IGNORE_GLOBAL_CONFIG='true'
 [ ! -f "$DIR/build.config" ]   || . "$DIR/build.config" && IGNORE_CONFIG='true'
 
-: ${PPA_BUILDER:="$DIR/../ppa-builder"}
+: ${PPA_BUILDER:="$DIR/ppa-builder"}
 : ${PPA_BUILDER_URL:='https://github.com/AndreyPavlenko/ppa-builder.git'}
 
 [ -d "$PPA_BUILDER" ] || git clone "$PPA_BUILDER_URL" "$PPA_BUILDER"
@@ -24,13 +24,8 @@ DEPENDS='git'
 : ${GIT_SRC_URL:="https://github.com/git/git.git"}
 : ${GIT_REV:="origin/master"}
 
-cd "$(dirname "$0")"
-DIR="$(pwd)"
-
-
 update() {
-    _git_update "$SRC_URL"
-    _git_update "$GIT_SRC_URL" "$GIT_SRC_DIR"
+    _git_update "$GIT_SRC_URL" "$GIT_SRC_DIR" ${GIT_REV#*/} ${GIT_REV%%/*}
 }
 
 _changelog() {
@@ -40,7 +35,9 @@ _changelog() {
 
 _checkout() {
     local dest="$1"
-    _git_checkout "$dest"
+    mkdir -p "$dest"
+    git --git-dir=$DIR/.git ls-tree --name-only $REV | \
+    while read i; do cp -r "$DIR/$i" "$dest"; done
     _git_checkout "$dest/git" "$GIT_REV" "$GIT_SRC_DIR"
 }
 
