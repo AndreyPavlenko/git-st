@@ -434,6 +434,7 @@ public class Repo implements AutoCloseable {
                 } else {
                     f = new Folder(root);
                     f.setName(path);
+                    f.update();
                 }
             }
 
