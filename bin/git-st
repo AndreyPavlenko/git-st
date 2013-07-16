@@ -93,7 +93,7 @@ fi
 declare -a ARGS
 declare -a JVM_ARGS
 
-for i in "$@" "${GITST_OPTS}"
+for i in $@ ${GITST_OPTS}
 do
     if [[ $i = -J* ]]
     then
