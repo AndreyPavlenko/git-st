@@ -4,7 +4,7 @@ set -e
 PKG_NAME="$(cd "$(dirname "$0")"; basename "$PWD")"
 SRC_URL='https://github.com/AndreyPavlenko/git-st.git'
 REV='master'
-DEPENDS='git'
+DEPENDS='git ant'
 
 : ${PPA:='tools'}
 : ${PPA_URL:='http://ppa.launchpad.net/aap'}
