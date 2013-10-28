@@ -3,6 +3,7 @@ package com.aap.gitst;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 
 import com.aap.gitst.Logger.Level;
@@ -32,9 +33,11 @@ public class Remote {
         final Logger log = new Logger(System.err,
                 !"false".equalsIgnoreCase(System.getenv("GITST_PB")));
         final Remote r = new Remote(log);
+        final PrintStream out = System.out;
+        System.setOut(System.err);
 
         try {
-            r.exec(remote, System.in, System.out);
+            r.exec(remote, System.in, out);
         } catch (final ExecutionException ex) {
             if (!log.isDebugEnabled()) {
                 log.error(ex.getMessage());

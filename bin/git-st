@@ -57,7 +57,8 @@ then
     done
     IFS="${ORIG_IFS}"
     CLASSPATH="${tmpCP}"
-else
+elif [ ! -z "${IS_WINDOWS}" ]
+then
     ORIG_IFS="${IFS}"
     IFS="${PS}"
     for i in ${CLASSPATH}
@@ -65,6 +66,8 @@ else
         LIBRARY_PATH="${LIBRARY_PATH}${PS}$(dirname "${i}")"
     done
     IFS="${ORIG_IFS}"
+else
+    LIBRARY_PATH="$(dirname "${JAR_PATH}")"
 fi
 
 if [ -z "${CLASS_NAME}" ]
