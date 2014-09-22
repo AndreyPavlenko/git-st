@@ -235,10 +235,24 @@ public class Repo implements AutoCloseable {
     @Override
     public synchronized void close() {
         if (_view != null) {
+            close(_view);
+
+            for (final View v : _viewCache) {
+                close(v);
+            }
+
             _view = null;
             _rootFolder = null;
             _pool.clear();
             _viewCache.clear();
+        }
+    }
+
+    private void close(final View v) {
+        try {
+            v.close();
+        } catch (final Throwable ex) {
+            _logger.error("Failed to close View", ex);
         }
     }
 

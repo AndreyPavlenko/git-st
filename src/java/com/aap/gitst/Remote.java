@@ -157,16 +157,18 @@ public class Remote {
             Init.setDefaults(props, props.getGit(), "master");
         }
 
-        final Repo repo = new Repo(props, getLogger());
-        final Pull pull = new Pull(repo);
-        pull.pull(out, dryRun);
+        try (final Repo repo = new Repo(props, getLogger())) {
+            final Pull pull = new Pull(repo);
+            pull.pull(out, dryRun);
+        }
     }
 
     private void push(final RepoProperties props, final boolean dryRun)
             throws IOException, InterruptedException, ExecutionException,
             FastExportException {
-        final Repo repo = new Repo(props, getLogger());
-        final Push push = new Push(repo);
-        push.push(dryRun);
+        try (final Repo repo = new Repo(props, getLogger())) {
+            final Push push = new Push(repo);
+            push.push(dryRun);
+        }
     }
 }
